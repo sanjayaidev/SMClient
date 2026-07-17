@@ -1,16 +1,38 @@
+# Examples
+
+## Project with artifacts:
 ```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+dist/
+build/
+target/
+
 # Dependencies
-node_modules/
+.venv/
+venv/
+.env
+.env.local
+.env.*
 
 # Logs and temp files
 *.log
 *.tmp
-
-# Environment
-.env
-.env.local
-*.env.*
+*.swp
 
 # Editors
 .vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
+```
+
+## Simple source code only:
+```
+# No ignores needed for source/config files only
 ```
