@@ -289,7 +289,7 @@
                     localStorage.setItem('auth_token', data.token);
                 }
                 setTimeout(() => {
-                    window.location.href = '/dashboard';
+                    window.location.href = '/dashboard.html';
                 }, 1000);
             } else {
                 showError(data.error || 'Login failed');
@@ -319,7 +319,7 @@
                     localStorage.setItem('auth_token', data.token);
                 }
                 setTimeout(() => {
-                    window.location.href = '/dashboard';
+                    window.location.href = '/dashboard.html';
                 }, 1000);
             } else {
                 showError(data.error || 'Registration failed');
@@ -330,11 +330,25 @@
     }
 
     // Check if already logged in
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
         const token = localStorage.getItem('auth_token');
         if (token) {
-            // Optionally validate token here
-            window.location.href = '/dashboard';
+            // Validate token before redirecting
+            try {
+                const res = await fetch(`${API_BASE}/me`, {
+                    credentials: 'include',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    window.location.href = '/dashboard.html';
+                } else {
+                    // Token invalid, clear it
+                    localStorage.removeItem('auth_token');
+                }
+            } catch (err) {
+                console.error('Token validation error:', err);
+                localStorage.removeItem('auth_token');
+            }
         }
     });
 </script>

@@ -265,57 +265,88 @@
     </div>
 
     <script>
+        const API_BASE = '/api/auth';
+
         // Check authentication on load
         async function checkAuth() {
+            // First try session-based auth (cookies)
+            let response;
             try {
-                const response = await fetch('/api/auth/me', {
+                response = await fetch(`${API_BASE}/me`, {
                     credentials: 'include'
                 });
+            } catch (err) {
+                console.error('Session auth failed:', err);
+            }
 
-                if (!response.ok) {
-                    throw new Error('Not authenticated');
+            // If session fails, try JWT token from localStorage
+            if (!response || !response.ok) {
+                const token = localStorage.getItem('auth_token');
+                if (token) {
+                    try {
+                        response = await fetch(`${API_BASE}/me`, {
+                            credentials: 'include',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    } catch (err) {
+                        console.error('Token auth failed:', err);
+                    }
                 }
+            }
 
-                const user = await response.json();
-                
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'block';
-                document.getElementById('userEmail').textContent = user.email;
-                document.getElementById('userName').textContent = user.name || user.email.split('@')[0];
-
-                // Load stats
-                loadStats();
-
-            } catch (error) {
-                console.error('Auth error:', error);
+            if (!response || !response.ok) {
+                console.error('Not authenticated');
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').textContent = 'Please login to access the dashboard.';
                 document.getElementById('error').style.display = 'block';
                 
                 setTimeout(() => {
-                    window.location.href = '/';
+                    window.location.href = '/index.html';
                 }, 2000);
+                return;
             }
+
+            const user = await response.json();
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('userEmail').textContent = user.email;
+            document.getElementById('userName').textContent = user.name || user.email.split('@')[0];
+
+            // Load stats
+            loadStats();
         }
 
         async function loadStats() {
+            const token = localStorage.getItem('auth_token');
+            const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
             try {
                 // Load posts count
-                const postsRes = await fetch('/api/posts', { credentials: 'include' });
+                const postsRes = await fetch('/api/posts', { 
+                    credentials: 'include',
+                    headers: authHeaders
+                });
                 if (postsRes.ok) {
                     const posts = await postsRes.json();
                     document.getElementById('postsCount').textContent = posts.length;
                 }
 
                 // Load connections count
-                const connRes = await fetch('/api/connections', { credentials: 'include' });
+                const connRes = await fetch('/api/connections', { 
+                    credentials: 'include',
+                    headers: authHeaders
+                });
                 if (connRes.ok) {
                     const connections = await connRes.json();
                     document.getElementById('connectionsCount').textContent = connections.length;
                 }
 
                 // Load automations count
-                const autoRes = await fetch('/api/automations', { credentials: 'include' });
+                const autoRes = await fetch('/api/automations', { 
+                    credentials: 'include',
+                    headers: authHeaders
+                });
                 if (autoRes.ok) {
                     const automations = await autoRes.json();
                     document.getElementById('automationsCount').textContent = automations.length;
@@ -326,16 +357,22 @@
         }
 
         async function logout() {
+            const token = localStorage.getItem('auth_token');
+            
             try {
-                await fetch('/api/auth/logout', {
+                await fetch(`${API_BASE}/logout`, {
                     method: 'POST',
                     credentials: 'include'
                 });
-                window.location.href = '/';
             } catch (error) {
                 console.error('Logout error:', error);
-                window.location.href = '/';
             }
+            
+            // Clear token from localStorage
+            localStorage.removeItem('auth_token');
+            
+            // Redirect to login page
+            window.location.href = '/index.html';
         }
 
         // Initialize
