@@ -5,12 +5,13 @@ const path = require('path');
 require('dotenv').config();
 
 const { initDB } = require('./db/schema');
-const { requireAuth, login } = require('./lib/auth');
+const { requireAuth } = require('./lib/auth');
 const { startScheduler } = require('./scheduler');
 const webhooksRouter = require('./routes/webhooks');
 const connectionsRouter = require('./routes/connections');
 const postsRouter = require('./routes/posts');
 const automationsRouter = require('./routes/automations');
+const authRouter = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,8 +30,8 @@ app.use('/', webhooksRouter(pool));
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// --- Auth ---
-app.post('/api/auth/login', login);
+// --- Auth routes (public) ---
+app.use('/api/auth', authRouter(pool));
 
 // --- Protected API routes ---
 app.use('/api/connections', requireAuth, connectionsRouter(pool));
