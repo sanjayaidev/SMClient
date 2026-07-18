@@ -1,48 +1,44 @@
+# Examples
+
+Input:
+### Added files:
+[pycache/main.cpython-310.pyc, dist/app.js, .env.local, .vscode/settings.json]
+
+### Deleted files:
+[]
+
+### Modified files:
+[]
+
+### current .gitignore Content
+*.log
+
+Expected Output:
+```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
 *.o
 *.obj
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
+dist/
+build/
 
 # Dependencies
-node_modules/
-venv/
 .venv/
-.env
-.env.local
-.env.*
+venv/
+node_modules/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
-*.swo
+
+# Environment
+.env
+.env.local
+.env.*
 
 # Editors
 .vscode/
 .idea/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Build directories
-dist/
-build/
-target/
-.gradle/
-
-# Python caches
-.mypy_cache/
-.pytest_cache/
+```

@@ -1497,10 +1497,20 @@
     };
 
     async function loadConnections() {
-        const res = await apiFetch('/api/connections');
-        if (res && res.ok) {
-            connections = await res.json();
-            renderConnections();
+        const grid = document.getElementById('connGrid');
+        try {
+            const res = await apiFetch('/api/connections');
+            if (res && res.ok) {
+                connections = await res.json();
+                renderConnections();
+            } else {
+                // Handle non-OK responses (e.g., 500, 401)
+                grid.innerHTML = `<div class="text-muted" style="padding:16px;">Failed to load connections. Please refresh the page.</div>`;
+            }
+        } catch (err) {
+            // Handle network errors or other exceptions
+            console.error('Error loading connections:', err);
+            grid.innerHTML = `<div class="text-muted" style="padding:16px;">Failed to load connections. Please ensure the server is running and refresh the page.</div>`;
         }
     }
 
