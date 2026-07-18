@@ -6,10 +6,13 @@ const instagram = require('../platforms/instagram');
 const facebook = require('../platforms/facebook');
 const threads = require('../platforms/threads');
 
-const META_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN;
-const META_APP_SECRET = process.env.META_APP_SECRET;
-const THREADS_VERIFY_TOKEN = process.env.THREADS_WEBHOOK_VERIFY_TOKEN;
-const THREADS_APP_SECRET = process.env.THREADS_APP_SECRET;
+// Platform-specific webhook configuration
+const FB_VERIFY_TOKEN = process.env.FB_WEBHOOK_VERIFY_TOKEN;
+const FB_APP_SECRET = process.env.FB_SECRET;
+const IG_VERIFY_TOKEN = process.env.IG_WEBHOOK_VERIFY_TOKEN;
+const IG_APP_SECRET = process.env.IG_SECRET;
+const TH_VERIFY_TOKEN = process.env.TH_WEBHOOK_VERIFY_TOKEN;
+const TH_APP_SECRET = process.env.TH_SECRET;
 
 function router(pool) {
   const r = express.Router();
@@ -54,29 +57,27 @@ function router(pool) {
     return res.rows;
   }
 
-  // ===== Meta (Instagram + Facebook) =====
-  r.get('/webhooks/meta', (req, res) => {
+  // ===== Facebook Webhook =====
+  r.get('/webhooks/facebook', (req, res) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-    if (mode === 'subscribe' && token === META_VERIFY_TOKEN) {
+    if (mode === 'subscribe' && token === FB_VERIFY_TOKEN) {
       return res.status(200).send(challenge);
     }
     return res.sendStatus(403);
   });
 
-  r.post('/webhooks/meta', express.raw({ type: 'application/json' }), async (req, res) => {
-    if (!verifySignature(req, META_APP_SECRET, 'x-hub-signature-256')) {
+  r.post('/webhooks/facebook', express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!verifySignature(req, FB_APP_SECRET, 'x-hub-signature-256')) {
       return res.sendStatus(403);
     }
-    res.sendStatus(200); // ack immediately; Meta expects a fast 200
+    res.sendStatus(200); // ack immediately; Facebook expects a fast 200
 
     let payload;
     try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
 
-    const platform = payload.object === 'instagram' ? 'instagram' : payload.object === 'page' ? 'facebook' : null;
-    if (!platform) return;
-
+    const platform = 'facebook';
     for (const entry of payload.entry || []) {
       // Comments arrive as "changes" with field "comments"
       for (const change of entry.changes || []) {
@@ -112,11 +113,9 @@ function router(pool) {
 
       try {
         if (triggerType === 'comment') {
-          const client = platform === 'instagram' ? instagram : facebook;
-          await client.replyToComment(token, replyTargetId, reply);
+          await facebook.replyToComment(token, replyTargetId, reply);
         } else if (triggerType === 'dm') {
-          const client = platform === 'instagram' ? instagram : facebook;
-          await client.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          await facebook.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
         }
       } catch (err) {
         console.error(`Auto-reply failed (${platform}/${triggerType}):`, err.response?.data || err.message);
@@ -124,7 +123,73 @@ function router(pool) {
     }
   });
 
-  // ===== Threads =====
+  // ===== Instagram Webhook =====
+  r.get('/webhooks/instagram', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    if (mode === 'subscribe' && token === IG_VERIFY_TOKEN) {
+      return res.status(200).send(challenge);
+    }
+    return res.sendStatus(403);
+  });
+
+  r.post('/webhooks/instagram', express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!verifySignature(req, IG_APP_SECRET, 'x-hub-signature-256')) {
+      return res.sendStatus(403);
+    }
+    res.sendStatus(200);
+
+    let payload;
+    try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
+
+    const platform = 'instagram';
+    for (const entry of payload.entry || []) {
+      // Comments arrive as "changes" with field "comments"
+      for (const change of entry.changes || []) {
+        if (change.field !== 'comments') continue;
+        const value = change.value;
+        const commentId = value.id;
+        const text = value.text;
+        const mediaId = value.media?.id || entry.id;
+        if (await alreadyProcessed(`comment:${commentId}`)) continue;
+        await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId, accountId: entry.id });
+      }
+      // DMs arrive under "messaging"
+      for (const messaging of entry.messaging || []) {
+        if (!messaging.message || messaging.message.is_echo) continue;
+        const senderId = messaging.sender?.id;
+        const text = messaging.message.text;
+        const msgId = messaging.message.mid;
+        if (await alreadyProcessed(`dm:${msgId}`)) continue;
+        await handleTrigger({ platform, triggerType: 'dm', text, senderId, accountId: entry.id });
+      }
+    }
+
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId }) {
+      const automations = await getActiveAutomations();
+      const match = findMatch(automations, { platform, triggerType, text });
+      if (!match) return;
+      const reply = await pickResponse(match);
+      if (!reply) return;
+
+      const conn = await getConnection(platform, accountId);
+      if (!conn) { console.error(`No connected ${platform} account to reply with`); return; }
+      const token = decrypt(conn.access_token);
+
+      try {
+        if (triggerType === 'comment') {
+          await instagram.replyToComment(token, replyTargetId, reply);
+        } else if (triggerType === 'dm') {
+          await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+        }
+      } catch (err) {
+        console.error(`Auto-reply failed (${platform}/${triggerType}):`, err.response?.data || err.message);
+      }
+    }
+  });
+
+  // ===== Threads Webhook =====
   // NOTE: Threads' webhook payload shape may need adjusting to match what
   // Meta actually sends for your app — verify against real deliveries in
   // the App Dashboard's webhook test tool before relying on this in prod.
@@ -132,14 +197,14 @@ function router(pool) {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
-    if (mode === 'subscribe' && token === THREADS_VERIFY_TOKEN) {
+    if (mode === 'subscribe' && token === TH_VERIFY_TOKEN) {
       return res.status(200).send(challenge);
     }
     return res.sendStatus(403);
   });
 
   r.post('/webhooks/threads', express.raw({ type: 'application/json' }), async (req, res) => {
-    if (!verifySignature(req, THREADS_APP_SECRET, 'x-hub-signature-256')) {
+    if (!verifySignature(req, TH_APP_SECRET, 'x-hub-signature-256')) {
       return res.sendStatus(403);
     }
     res.sendStatus(200);
@@ -170,6 +235,34 @@ function router(pool) {
           console.error('Threads auto-reply failed:', err.response?.data || err.message);
         }
       }
+    }
+  });
+
+  // ===== External API Access with API Key Authentication =====
+  // Allows other platforms/apps to access posts and automations with valid API key
+  r.get('/api/public/posts', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (!apiKey || apiKey !== process.env.API_KEY) {
+      return res.status(401).json({ error: 'Invalid or missing API key' });
+    }
+    try {
+      const result = await pool.query('SELECT id, title, caption, hook, platforms, scheduled_date, status, created_at FROM posts ORDER BY scheduled_date DESC');
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  r.get('/api/public/automations', async (req, res) => {
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (!apiKey || apiKey !== process.env.API_KEY) {
+      return res.status(401).json({ error: 'Invalid or missing API key' });
+    }
+    try {
+      const result = await pool.query('SELECT id, name, type, keywords, ai_prompt, variations, is_active, created_at FROM automations WHERE is_active=true');
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 

@@ -8,37 +8,40 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-in-producti
 // Must exactly match a Valid OAuth Redirect URI configured in each app's dashboard.
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v25.0';
+const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v21.0';
 const THREADS_VERSION = process.env.THREADS_VERSION || 'v1.0';
 
 // Never send access_token back to the client, even to an authed admin —
 // no legitimate UI need, and it shrinks the blast radius of any XSS.
 const SAFE_FIELDS = 'id, platform, account_name, account_id, page_id, is_connected, token_expires_at, created_at, updated_at';
 
-// Each platform gets its own App ID/Secret, configured via env vars. Facebook
-// and Threads reuse the same app-secret env vars the webhook signature
-// verifier already relies on (routes/webhooks.js) since it's the same app.
+// Each platform gets its own App ID/Secret. Facebook and Instagram can share
+// the same Meta app, but Threads requires separate registration. Google uses
+// a single Google Cloud project for both Sheets and Drive.
 const OAUTH_CONFIGS = {
   facebook: {
     label: 'Facebook',
     authUrl: `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`,
     scope: 'pages_show_list,pages_read_engagement,business_management,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_comments,instagram_manage_messages,marketing_messages_messenger,email',
     clientId: process.env.FB_APP_ID,
-    clientSecret: process.env.META_APP_SECRET,
+    clientSecret: process.env.FB_SECRET,
+    webhookVerifyToken: process.env.FB_WEBHOOK_VERIFY_TOKEN,
   },
   instagram: {
     label: 'Instagram',
     authUrl: 'https://www.instagram.com/oauth/authorize',
     scope: 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights',
     clientId: process.env.IG_APP_ID,
-    clientSecret: process.env.IG_APP_SECRET,
+    clientSecret: process.env.IG_SECRET,
+    webhookVerifyToken: process.env.IG_WEBHOOK_VERIFY_TOKEN,
   },
   threads: {
     label: 'Threads',
     authUrl: 'https://threads.net/oauth/authorize',
     scope: 'threads_basic,threads_content_publish,threads_manage_insights,threads_manage_replies,threads_read_replies,threads_delete',
-    clientId: process.env.THREADS_APP_ID,
-    clientSecret: process.env.THREADS_APP_SECRET,
+    clientId: process.env.TH_APP_ID,
+    clientSecret: process.env.TH_SECRET,
+    webhookVerifyToken: process.env.TH_WEBHOOK_VERIFY_TOKEN,
   },
   google_sheets: {
     label: 'Google Sheets',
