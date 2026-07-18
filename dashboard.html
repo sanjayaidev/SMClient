@@ -622,7 +622,7 @@
             <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
             <span class="page-title" id="pageTitle"><i class="fas fa-calendar-day"></i> Scheduler</span>
         </div>
-        <div class="header-actions">
+        <div class="header-actions" id="headerActions">
             <button class="btn btn-outline btn-sm" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
             <button class="btn btn-primary btn-sm" id="addPostBtn"><i class="fas fa-plus"></i> Add</button>
         </div>
@@ -659,7 +659,6 @@
         <div class="tab-content" id="tab-connections">
             <div class="flex-between mb-2">
                 <h3 style="font-weight:600; font-size:18px;">🔗 Platform Connections</h3>
-                <button class="btn btn-primary btn-sm" id="addConnBtn"><i class="fas fa-plus"></i> Add Connection</button>
             </div>
             <div class="card-grid" style="gap:12px;" id="connGrid">
                 <div class="text-muted" style="padding:16px;">Loading connections…</div>
@@ -930,6 +929,7 @@
                 tabContents[key].classList.toggle('active', key === tab);
             });
             pageTitle.innerHTML = titleMap[tab] || 'Scheduler';
+            document.getElementById('headerActions').style.display = tab === 'scheduler' ? 'flex' : 'none';
             if (window.innerWidth <= 820) sidebar.classList.remove('open');
         });
     });
@@ -1488,8 +1488,10 @@
     // CONNECTIONS: LOAD & RENDER
     // ============================================================
     const PLATFORM_META = {
-        instagram: { name: 'Instagram Business', icon: 'fab fa-instagram', color: 'var(--ig)' },
-        facebook: { name: 'Facebook Business', icon: 'fab fa-facebook-f', color: 'var(--fb)' },
+        google_sheets: { name: 'Google Sheets', icon: 'fas fa-table', color: '#0f9d58' },
+        google_drive: { name: 'Google Drive', icon: 'fab fa-google-drive', color: '#4285f4' },
+        facebook: { name: 'Facebook', icon: 'fab fa-facebook-f', color: 'var(--fb)' },
+        instagram: { name: 'Instagram', icon: 'fab fa-instagram', color: 'var(--ig)' },
         threads: { name: 'Threads', icon: 'fas fa-threads', color: 'var(--threads)' }
     };
 
@@ -1524,24 +1526,15 @@
         });
     }
 
-    async function connectPlatform(platform) {
-        const account_name = prompt(`Account name / handle for ${PLATFORM_META[platform].name}:`);
-        if (account_name === null) return;
-        const account_id = prompt('Account ID (from the platform):');
-        if (!account_id) return;
-        const access_token = prompt('Access token:');
-        if (!access_token) return;
-        const res = await apiFetch('/api/connections', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform, account_name, account_id, access_token })
-        });
-        if (res && res.ok) {
-            await loadConnections();
-        } else if (res) {
-            const data = await res.json().catch(() => ({}));
-            alert(data.error || 'Failed to connect');
-        }
+    // Real OAuth connect: this is a full-page redirect (not a fetch), so the
+    // browser lands on Facebook/Google/etc.'s own login+consent screen, using
+    // that platform's own App ID/Secret configured server-side, then bounces
+    // back to /api/connections/:platform/callback which saves the connection
+    // and redirects here again with ?connected=<platform> or ?conn_error=...
+    function connectPlatform(platform) {
+        const token = localStorage.getItem('auth_token') || '';
+        const url = `/api/connections/${platform}/authorize` + (token ? `?token=${encodeURIComponent(token)}` : '');
+        window.location.href = url;
     }
 
     async function disconnectPlatform(id) {
@@ -1549,9 +1542,25 @@
         const res = await apiFetch(`/api/connections/${id}`, { method: 'DELETE' });
         if (res && res.ok) await loadConnections();
     }
-    document.getElementById('addConnBtn').addEventListener('click', () => {
-        document.querySelector('.nav-item[data-tab="connections"]').click();
-    });
+
+    // After bouncing back from an OAuth callback, show the result and clean the URL.
+    function handleConnectionRedirectResult() {
+        const params = new URLSearchParams(window.location.search);
+        const connected = params.get('connected');
+        const connError = params.get('conn_error');
+        if (connected) {
+            alert(`${PLATFORM_META[connected] ? PLATFORM_META[connected].name : connected} connected successfully!`);
+        } else if (connError) {
+            alert(`Connection failed: ${connError}`);
+        }
+        if (connected || connError) {
+            params.delete('connected');
+            params.delete('conn_error');
+            const rest = params.toString();
+            window.history.replaceState({}, '', rest ? `/dashboard.html?${rest}` : '/dashboard.html');
+            document.querySelector('.nav-item[data-tab="connections"]').click();
+        }
+    }
 
     // ============================================================
     // AUTH GUARD, LOGOUT & INIT
@@ -1572,6 +1581,7 @@
         loadPosts();
         loadAutomations();
         loadConnections();
+        handleConnectionRedirectResult();
     }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {

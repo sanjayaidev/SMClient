@@ -50,6 +50,10 @@ app.use(express.static(__dirname));
 // --- Auth routes (public) ---
 app.use('/api/auth', authRouter(pool));
 
+// --- Connections OAuth (public: Meta/Google redirect users here directly,
+// so it can't sit behind requireAuth — see routes/connections.js) ---
+app.use('/api/connections', connectionsRouter.oauthRouter(pool));
+
 // --- Protected API routes ---
 app.use('/api/connections', requireAuth, connectionsRouter(pool));
 app.use('/api/posts', requireAuth, postsRouter(pool));
