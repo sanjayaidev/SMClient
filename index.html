@@ -289,7 +289,7 @@
                     localStorage.setItem('auth_token', data.token);
                 }
                 setTimeout(() => {
-                    window.location.href = '/dashboard.html';
+                    window.location.href = '/dashboard';
                 }, 1000);
             } else {
                 showError(data.error || 'Login failed');
@@ -319,7 +319,7 @@
                     localStorage.setItem('auth_token', data.token);
                 }
                 setTimeout(() => {
-                    window.location.href = '/dashboard.html';
+                    window.location.href = '/dashboard';
                 }, 1000);
             } else {
                 showError(data.error || 'Registration failed');
@@ -334,7 +334,7 @@
         const token = localStorage.getItem('auth_token');
         if (token) {
             // Optionally validate token here
-            window.location.href = '/dashboard.html';
+            window.location.href = '/dashboard';
         }
     });
 </script>
