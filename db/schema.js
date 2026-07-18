@@ -1,9 +1,23 @@
 async function initDB(pool) {
+  // --- users: multi-tenant user store with email/password auth ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      name VARCHAR(255),
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // --- posts: add media_url (IG/FB require an image), and per-platform
   // published-id tracking (original schema only had one ig_media_id column) ---
   await pool.query(`
     CREATE TABLE IF NOT EXISTS posts (
       id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       title VARCHAR(255) NOT NULL,
       caption TEXT,
       hook VARCHAR(500),
@@ -24,6 +38,7 @@ async function initDB(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS automations (
       id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       name VARCHAR(255) NOT NULL,
       type VARCHAR(50) NOT NULL,
       keywords JSONB,
@@ -42,6 +57,7 @@ async function initDB(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS connections (
       id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       platform VARCHAR(50) NOT NULL,
       account_name VARCHAR(255),
       access_token TEXT,
@@ -58,7 +74,7 @@ async function initDB(pool) {
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'connections_platform_account_unique'
       ) THEN
-        ALTER TABLE connections ADD CONSTRAINT connections_platform_account_unique UNIQUE (platform, account_id);
+        ALTER TABLE connections ADD CONSTRAINT connections_platform_account_unique UNIQUE (user_id, platform, account_id);
       END IF;
     END $$;
   `);

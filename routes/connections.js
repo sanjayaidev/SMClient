@@ -10,7 +10,7 @@ function router(pool) {
 
   r.get('/', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       const result = await pool.query(`SELECT ${SAFE_FIELDS} FROM connections WHERE user_id = $1 ORDER BY created_at DESC`, [userId]);
       res.json(result.rows);
     } catch (err) {
@@ -20,7 +20,7 @@ function router(pool) {
 
   r.post('/', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       const { platform, account_name, account_id, page_id, access_token, token_expires_at } = req.body;
       if (!platform || !account_id || !access_token) {
         return res.status(400).json({ error: 'platform, account_id, and access_token are required' });
@@ -44,7 +44,7 @@ function router(pool) {
 
   r.delete('/:id', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       await pool.query('DELETE FROM connections WHERE id=$1 AND user_id=$2', [req.params.id, userId]);
       res.json({ success: true });
     } catch (err) {

@@ -1,4 +1,5 @@
 const express = require('express');
+const session = require('express-session');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
@@ -21,7 +22,23 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
-app.use(cors());
+// CORS with credentials support for session cookies
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
+// Session middleware for persistence
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
 
 // Webhook routes need the RAW body for signature verification, so they're
 // mounted before express.json() and parse their own body internally.

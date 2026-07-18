@@ -6,7 +6,7 @@ function router(pool) {
 
   r.get('/', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       const result = await pool.query('SELECT * FROM posts WHERE user_id = $1 ORDER BY scheduled_date DESC', [userId]);
       res.json(result.rows);
     } catch (err) {
@@ -16,7 +16,7 @@ function router(pool) {
 
   r.post('/', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       const { title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id } = req.body;
       const result = await pool.query(
         `INSERT INTO posts (user_id, title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id, status)
@@ -32,7 +32,7 @@ function router(pool) {
 
   r.put('/:id', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       const { id } = req.params;
       const { title, caption, hook, platforms, scheduled_date, status, media_url, google_drive_file_id } = req.body;
       const result = await pool.query(
@@ -48,7 +48,7 @@ function router(pool) {
 
   r.delete('/:id', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       await pool.query('DELETE FROM posts WHERE id=$1 AND user_id=$2', [req.params.id, userId]);
       res.json({ success: true });
     } catch (err) {
@@ -59,7 +59,7 @@ function router(pool) {
   // Manual trigger — publish immediately instead of waiting for the cron tick
   r.post('/:id/publish-now', async (req, res) => {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.id || req.user.sub;
       // Verify ownership
       const check = await pool.query('SELECT 1 FROM posts WHERE id=$1 AND user_id=$2', [req.params.id, userId]);
       if (check.rows.length === 0) {
