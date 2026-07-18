@@ -110,6 +110,7 @@
             padding: 1px 10px;
             border-radius: 30px;
             font-weight: 600;
+            display: none;
         }
         .nav-item .badge.active-badge { background: var(--success); color: white; }
         .nav-item .badge.warn-badge { background: var(--warning); color: white; }
@@ -282,6 +283,7 @@
         }
         .cal-cell:hover { border-color: #94a3b8; transform: translateY(-2px); box-shadow: var(--shadow); }
         .cal-cell.outside { opacity: 0.3; }
+        .cal-cell.past-date { opacity: 0.4; cursor: not-allowed; background: #f9fafb; }
         .cal-cell.today { border: 2px solid var(--primary); }
         .cal-cell.selected { background: #eff6ff; border-color: var(--primary); }
         .cal-date {
@@ -601,9 +603,9 @@
 <!-- ===== SIDEBAR ===== -->
 <nav class="sidebar" id="sidebar">
     <div class="logo"><i class="fas fa-calendar-alt"></i> <span>Planner</span></div>
-    <div class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler <span class="badge">12</span></div>
-    <div class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections <span class="badge active-badge">3</span></div>
-    <div class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation <span class="badge warn-badge">2</span></div>
+    <div class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler</div>
+    <div class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections</div>
+    <div class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation</div>
     <div class="nav-item" data-tab="profile"><i class="fas fa-user"></i> Profile</div>
     <div class="nav-item" data-tab="settings"><i class="fas fa-sliders-h"></i> Settings</div>
     <div class="sidebar-footer">
@@ -750,44 +752,40 @@
                             <!-- Keyword & Reply -->
                             <div id="kwContent">
                                 <div><label>Keywords (comma separated)</label>
-                                    <input type="text" value="price, pricing, cost, how much" placeholder="e.g. price, discount, support" id="kwInput">
+                                    <input type="text" placeholder="e.g. price, discount, support" id="kwInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
                                 </div>
                                 <div><label>Reply Location</label>
-                                    <select id="replyLocation"><option value="dm">DM</option><option value="comment">Comment</option><option value="both">Both</option></select>
+                                    <select id="replyLocation" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option value="dm">DM</option><option value="comment">Comment</option><option value="both">Both</option></select>
                                 </div>
-                                <label>Reply Variations (5)</label>
+                                <label>Reply Variations</label>
                                 <div id="variationsContainer">
-                                    <div class="variation-input"><textarea rows="2">Our pricing starts at $99/month with a 14-day free trial. Would you like to see our full pricing page?</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
-                                    <div class="variation-input"><textarea rows="2">Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
-                                    <div class="variation-input"><textarea rows="2">Great question! Check out our pricing at [link] or DM me for special offers!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
-                                    <div class="variation-input"><textarea rows="2">We have flexible plans starting at $99. What's your budget? I can recommend the best fit!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
-                                    <div class="variation-input"><textarea rows="2">Prices range from $99 to $499/month. I'll DM you our complete pricing guide!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                    <div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;"></textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
                                 </div>
                                 <button class="btn btn-sm btn-outline" id="addVariation"><i class="fas fa-plus"></i> Add Variation</button>
                                 <div class="flex mt-2"><label style="font-weight:500;">Selection:</label>
-                                    <select><option>Random</option><option>Sequential</option><option>Weighted</option></select>
+                                    <select style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;"><option>Random</option><option>Sequential</option><option>Weighted</option></select>
                                 </div>
                             </div>
                             <!-- AI Content -->
                             <div id="aiContent" style="display:none;">
-                                <div><label>AI Model</label><select><option>GPT-4</option><option>Claude 3</option><option>Gemini</option></select></div>
-                                <div><label>Reply Location</label><select><option>Comment</option><option>DM</option><option>Both</option></select></div>
-                                <div><label>System Prompt</label><textarea rows="3" style="min-height:80px;">You are a friendly customer service agent. Keep responses under 300 characters. Be professional, warm, and helpful. Include emojis occasionally. Don't mention you're an AI.</textarea></div>
+                                <div><label>AI Model</label><select id="aiModelStep3" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></select></div>
+                                <div><label>Reply Location</label><select style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option>Comment</option><option>DM</option><option>Both</option></select></div>
+                                <div><label>System Prompt</label><textarea rows="3" id="aiSystemPromptStep3" style="min-height:80px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
                                 <div class="modal-row">
-                                    <div><label>Temperature</label><input type="range" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
-                                    <div><label>Max Tokens</label><input type="number" value="256"></div>
+                                    <div><label>Temperature</label><input type="range" id="aiTempStep3" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
+                                    <div><label>Max Tokens</label><input type="number" id="aiMaxTokensStep3" value="256" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
                                 </div>
-                                <label><input type="checkbox" checked> Include conversation history</label>
+                                <label><input type="checkbox" id="aiIncludeHistoryStep3"> Include conversation history</label>
                             </div>
                             <!-- Hybrid Content -->
                             <div id="hybridContent" style="display:none;">
                                 <p class="text-muted">Keyword rules + AI fallback</p>
-                                <div><label>Keywords</label><input type="text" value="help, support, issue, problem" placeholder="Keywords for rules"></div>
-                                <div><label>Reply</label><input type="text" value="We'll DM you shortly to help!" placeholder="Reply message"></div>
+                                <div><label>Keywords</label><input type="text" placeholder="Keywords for rules" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
+                                <div><label>Reply</label><input type="text" placeholder="Reply message" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
                                 <hr style="margin:12px 0;border-color:var(--border);">
-                                <label><input type="checkbox" checked> Enable AI fallback for generic queries</label>
-                                <div><label>Fallback Model</label><select><option>GPT-4</option><option>Claude 3</option></select></div>
-                                <div><label>Fallback Prompt</label><textarea rows="2">You are a helpful assistant. Respond naturally to generic questions. Keep it brief (under 200 chars).</textarea></div>
+                                <label><input type="checkbox"> Enable AI fallback for generic queries</label>
+                                <div><label>Fallback Model</label><select style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></select></div>
+                                <div><label>Fallback Prompt</label><textarea rows="2" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
                             </div>
                         </div>
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
@@ -800,13 +798,13 @@
                     <div class="auto-step" data-step="4">
                         <p class="text-muted mb-2">Test your automation before activating.</p>
                         <div class="flex" style="gap:8px; flex-wrap:wrap;">
-                            <input type="text" placeholder="Type a test message..." id="testInput" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;">
+                            <input type="text" placeholder="Type a test message..." id="testInput" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;">
                             <button class="btn btn-primary" id="runTestBtn"><i class="fas fa-play"></i> Test</button>
                         </div>
                         <div id="testResult" class="test-result" style="display:none;">
-                            <div><span class="matched">✅ Matched: Price Inquiry</span> <span class="text-muted" style="font-size:12px;">(95% confidence)</span></div>
-                            <div class="response" id="testResponse">Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!</div>
-                            <div class="text-muted" style="font-size:12px;margin-top:4px;">⏱️ Response time: 1.2s</div>
+                            <div><span class="matched"></span> <span class="text-muted" style="font-size:12px;"></span></div>
+                            <div class="response" id="testResponse"></div>
+                            <div class="text-muted" style="font-size:12px;margin-top:4px;"></div>
                         </div>
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
                             <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
@@ -821,25 +819,20 @@
         <div class="tab-content" id="tab-profile">
             <div class="card" style="max-width:600px;">
                 <div class="flex" style="gap:16px; margin-bottom:16px;">
-                    <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-size:28px;color:white;font-weight:700;flex-shrink:0;">JD</div>
-                    <div><h3 style="font-size:18px;">John Doe</h3><div class="text-muted">Content Manager · john.doe@example.com</div></div>
+                    <div id="profileAvatar" style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-size:28px;color:white;font-weight:700;flex-shrink:0;"></div>
+                    <div><h3 id="profileName" style="font-size:18px;"></h3><div id="profileEmail" class="text-muted"></div></div>
                 </div>
                 <div class="modal-row">
-                    <div><label>Full Name</label><input type="text" value="John Doe"></div>
-                    <div><label>Email</label><input type="email" value="john.doe@example.com"></div>
+                    <div><label>Full Name</label><input type="text" id="profileFullNameInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
+                    <div><label>Email</label><input type="email" id="profileEmailInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
                 </div>
                 <div class="modal-row">
-                    <div><label>Phone</label><input type="text" value="+1 555-123-4567"></div>
-                    <div><label>Timezone</label><select><option>America/New York</option><option>America/Los Angeles</option><option>Europe/London</option></select></div>
+                    <div><label>Phone</label><input type="tel" id="profilePhoneInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
+                    <div><label>Timezone</label><select id="profileTimezoneInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option>America/New York</option><option>America/Los Angeles</option><option>Europe/London</option></select></div>
                 </div>
-                <div><label>Default Platform</label><select><option>Instagram</option><option>Facebook</option><option>Threads</option></select></div>
+                <div><label>Default Platform</label><select id="profilePlatformInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option>Instagram</option><option>Facebook</option><option>Threads</option></select></div>
                 <hr style="margin:16px 0;border-color:var(--border);">
-                <div class="flex" style="gap:20px; flex-wrap:wrap;">
-                    <div><span class="text-muted">Posts</span><br><strong style="font-size:20px;">156</strong></div>
-                    <div><span class="text-muted">Scheduled</span><br><strong style="font-size:20px;">45</strong></div>
-                    <div><span class="text-muted">Auto Replies</span><br><strong style="font-size:20px;">2,341</strong></div>
-                </div>
-                <div class="flex mt-2"><button class="btn btn-primary">Save Changes</button><button class="btn btn-outline">Change Password</button></div>
+                <div class="flex mt-2"><button class="btn btn-primary" id="saveProfileBtn">Save Changes</button><button class="btn btn-outline" id="changePasswordBtn">Change Password</button></div>
             </div>
         </div>
 
@@ -848,26 +841,26 @@
             <div class="card" style="max-width:640px;">
                 <h4 style="font-weight:600; margin-bottom:12px;">🤖 AI Configuration</h4>
                 <div class="modal-row">
-                    <div><label>Default Model</label><select><option>GPT-4</option><option>Claude 3</option><option>Gemini</option></select></div>
-                    <div><label>API Key</label><input type="password" value="sk-••••••••••••••••••"></div>
+                    <div><label>Default Model</label><select id="aiModelSelect" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></select></div>
+                    <div><label>API Key</label><input type="password" id="aiApiKeyInput" placeholder="Enter your API key" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
                 </div>
-                <div><label>Default System Prompt</label><textarea rows="3">You are a helpful assistant for our business. Be friendly, professional, and concise. Keep responses under 300 chars.</textarea></div>
+                <div><label>Default System Prompt</label><textarea id="aiSystemPromptInput" rows="3" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
                 <div class="modal-row">
-                    <div><label>Temperature</label><input type="range" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
-                    <div><label>Max Tokens</label><input type="number" value="2048"></div>
+                    <div><label>Temperature</label><input type="range" id="aiTemperatureInput" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
+                    <div><label>Max Tokens</label><input type="number" id="aiMaxTokensInput" value="2048" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
                 </div>
                 <hr style="margin:16px 0;border-color:var(--border);">
                 <h4 style="font-weight:600; margin-bottom:8px;">📝 Default Reply Settings</h4>
-                <label><input type="checkbox" checked> Use AI for generic comments</label><br>
-                <label><input type="checkbox" checked> Send DM reply for questions</label><br>
-                <label><input type="checkbox"> Add emojis to replies</label><br>
-                <div class="mt-2"><label>Default Reply</label><textarea rows="2">Thank you for your interest! We'll get back to you shortly.</textarea></div>
+                <label><input type="checkbox" id="aiGenericCommentsCheck"> Use AI for generic comments</label><br>
+                <label><input type="checkbox" id="aiDmReplyCheck"> Send DM reply for questions</label><br>
+                <label><input type="checkbox" id="aiEmojisCheck"> Add emojis to replies</label><br>
+                <div class="mt-2"><label>Default Reply</label><textarea id="aiDefaultReplyInput" rows="2" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
                 <hr style="margin:16px 0;border-color:var(--border);">
                 <h4 style="font-weight:600; margin-bottom:8px;">🔔 Notifications</h4>
-                <label><input type="checkbox" checked> Email notifications</label><br>
-                <label><input type="checkbox" checked> Push notifications for errors</label><br>
-                <label><input type="checkbox"> Weekly summary reports</label><br>
-                <div class="flex mt-2"><button class="btn btn-primary">Save Settings</button><button class="btn btn-outline">Reset to Defaults</button></div>
+                <label><input type="checkbox" id="notifyEmailCheck"> Email notifications</label><br>
+                <label><input type="checkbox" id="notifyPushCheck"> Push notifications for errors</label><br>
+                <label><input type="checkbox" id="notifyWeeklyCheck"> Weekly summary reports</label><br>
+                <div class="flex mt-2"><button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button><button class="btn btn-outline" id="resetSettingsBtn">Reset to Defaults</button></div>
             </div>
         </div>
 
@@ -1047,7 +1040,7 @@
 
             for (let i = 0; i < totalCells; i++) {
                 const cell = document.createElement('div');
-                let dayNum, isOutside = false;
+                let dayNum, isOutside = false, isPast = false;
                 if (i < start) {
                     const prevMonth = new Date(year, month, 0).getDate();
                     dayNum = prevMonth - start + i + 1;
@@ -1057,19 +1050,22 @@
                     isOutside = true;
                 } else {
                     dayNum = i - start + 1;
+                    const cellDate = new Date(year, month, dayNum);
+                    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    if (cellDate < todayStart) isPast = true;
                 }
-                cell.className = 'cal-cell' + (isOutside ? ' outside' : '');
-                if (!isOutside && today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayNum) {
+                cell.className = 'cal-cell' + (isOutside ? ' outside' : '') + (isPast ? ' past-date' : '');
+                if (!isOutside && !isPast && today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayNum) {
                     cell.classList.add('today');
                 }
-                if (!isOutside && selectedDay === dayNum) cell.classList.add('selected');
+                if (!isOutside && !isPast && selectedDay === dayNum) cell.classList.add('selected');
 
                 const dateDiv = document.createElement('div');
                 dateDiv.className = 'cal-date';
                 dateDiv.innerHTML = `<span>${dayNum}</span>`;
                 cell.appendChild(dateDiv);
 
-                if (!isOutside) {
+                if (!isOutside && !isPast) {
                     const platforms = getDayPlatforms(dayNum);
                     const icons = document.createElement('div');
                     icons.className = 'cal-platform-icons';
@@ -1238,8 +1234,12 @@
             editingPostId = null;
             document.getElementById('modalHeading').innerHTML = '<i class="fas fa-plus-circle" style="color:var(--primary);"></i> Schedule Post';
             document.getElementById('savePostBtn').textContent = 'Schedule Post';
-            const d = day || calDate.getDate();
-            document.getElementById('modalDate').value = `${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const now = new Date();
+            const d = day || now.getDate();
+            const month = day ? calDate.getMonth() : now.getMonth();
+            const year = day ? calDate.getFullYear() : now.getFullYear();
+            document.getElementById('modalDate').value = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            document.getElementById('modalDate').min = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
             document.getElementById('modalTime').value = '14:30';
             document.getElementById('modalPlatform').value = 'instagram';
             document.getElementById('modalTitle').value = '';
@@ -1566,6 +1566,65 @@
     // ============================================================
     // AUTH GUARD, LOGOUT & INIT
     // ============================================================
+    
+    // AI Models list - fetched from chat endpoint
+    let aiModels = [];
+    
+    async function loadAiModels() {
+        try {
+            const res = await apiFetch('/api/ai/models');
+            if (res && res.ok) {
+                aiModels = await res.json();
+                const select = document.getElementById('aiModelSelect');
+                select.innerHTML = '';
+                aiModels.forEach(model => {
+                    const opt = document.createElement('option');
+                    opt.value = model.id || model;
+                    opt.textContent = model.name || model;
+                    select.appendChild(opt);
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load AI models:', err);
+            // Fallback to default models if API fails
+            aiModels = ['claude-sonnet-4', 'claude-opus-4', 'gpt-4', 'gpt-3.5-turbo'];
+            const select = document.getElementById('aiModelSelect');
+            select.innerHTML = '';
+            aiModels.forEach(model => {
+                const opt = document.createElement('option');
+                opt.value = model;
+                opt.textContent = model;
+                select.appendChild(opt);
+            });
+        }
+    }
+    
+    async function loadUserProfile() {
+        try {
+            const res = await apiFetch('/api/auth/me');
+            if (res && res.ok) {
+                const data = await res.json();
+                const user = data.user;
+                const nameEl = document.getElementById('profileName');
+                const emailEl = document.getElementById('profileEmail');
+                const avatarEl = document.getElementById('profileAvatar');
+                const fullNameInput = document.getElementById('profileFullNameInput');
+                const emailInput = document.getElementById('profileEmailInput');
+                
+                if (nameEl) nameEl.textContent = user.name || user.email;
+                if (emailEl) emailEl.textContent = `${user.name || ''} · ${user.email}`.replace(/^ · /, '');
+                if (avatarEl && user.name) {
+                    const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    avatarEl.textContent = initials || 'U';
+                }
+                if (fullNameInput) fullNameInput.value = user.name || '';
+                if (emailInput) emailInput.value = user.email || '';
+            }
+        } catch (err) {
+            console.error('Failed to load user profile:', err);
+        }
+    }
+
     async function checkAuthAndInit() {
         const token = localStorage.getItem('auth_token');
         const res = await fetch('/api/auth/me', { credentials: 'include', headers: authHeaders() });
@@ -1575,13 +1634,11 @@
             return;
         }
         const data = await res.json();
-        const nameEl = document.querySelector('#tab-profile h3');
-        const emailEl = document.querySelector('#tab-profile .text-muted');
-        if (nameEl) nameEl.textContent = data.user.name || data.user.email;
-        if (emailEl) emailEl.textContent = `${data.user.name || ''} · ${data.user.email}`.replace(/^ · /, '');
         loadPosts();
         loadAutomations();
         loadConnections();
+        loadAiModels();
+        loadUserProfile();
         handleConnectionRedirectResult();
     }
 
