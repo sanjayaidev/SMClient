@@ -1,382 +1,1608 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - SocialFlow AI</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+    <title>Content Planner · Meta Scheduler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #7c3aed;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #f4f6fa;
+            --card-bg: #ffffff;
+            --text: #1e1e2f;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 8px 30px rgba(0,0,0,0.06);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --sidebar-width: 220px;
+            --header-height: 60px;
+            --transition: 0.25s ease;
+            --ig: #E4405F;
+            --fb: #1877F2;
+            --threads: #000000;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100vh;
+            display: flex;
+        }
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            border-right: 1px solid var(--border);
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 16px 12px;
+            flex-shrink: 0;
+            transition: transform var(--transition);
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .sidebar .logo {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .sidebar .logo i { -webkit-text-fill-color: var(--primary); font-size: 24px; }
+        .sidebar .logo span { -webkit-text-fill-color: var(--text); }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 2px;
+            text-decoration: none;
+            position: relative;
+        }
+        .nav-item:hover { background: #f1f5f9; color: var(--text); }
+        .nav-item.active {
+            background: #eff6ff;
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            bottom: 8px;
+            width: 3px;
+            background: var(--primary);
+            border-radius: 0 4px 4px 0;
+        }
+        .nav-item i { width: 20px; text-align: center; font-size: 16px; }
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--border);
+            color: var(--text-muted);
+            font-size: 10px;
+            padding: 1px 10px;
+            border-radius: 30px;
+            font-weight: 600;
+        }
+        .nav-item .badge.active-badge { background: var(--success); color: white; }
+        .nav-item .badge.warn-badge { background: var(--warning); color: white; }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 12px 8px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .sidebar-footer .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            margin-right: 6px;
         }
 
-        .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 1rem 2rem;
+        /* ===== MAIN CONTENT ===== */
+        .main {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .header {
+            height: var(--header-height);
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+            gap: 12px;
+        }
+        .header .page-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .header .page-title i { color: var(--primary); }
+        .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .header-actions .btn { font-size: 13px; padding: 6px 14px; }
+        .header .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px 30px;
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 60px;
+            font-weight: 500;
+            font-size: 14px;
+            background: white;
+            color: var(--text);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: white; border: none; }
+        .btn-primary:hover { background: var(--primary-dark); transform: scale(0.97); }
+        .btn-success { background: var(--success); color: white; border: none; }
+        .btn-success:hover { opacity: 0.9; transform: scale(0.97); }
+        .btn-outline { background: transparent; border: 1px solid var(--border); }
+        .btn-outline:hover { background: #f1f5f9; }
+        .btn-danger { background: var(--error); color: white; border: none; }
+        .btn-danger:hover { opacity: 0.9; transform: scale(0.97); }
+        .btn-sm { padding: 4px 12px; font-size: 12px; }
+        .btn-xs { padding: 2px 10px; font-size: 11px; }
+        .btn-ghost { background: transparent; border: none; color: var(--text-muted); }
+        .btn-ghost:hover { background: #f1f5f9; }
+
+        /* ===== TABS ===== */
+        .tab-content { display: none; animation: fadeUp 0.3s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== CARDS ===== */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 18px 20px;
+            transition: all var(--transition);
+        }
+        .card:hover { border-color: #cbd5e1; }
+        .card-grid { display: grid; gap: 16px; }
+
+        /* ===== SCHEDULER ===== */
+        .calendar-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .calendar-toolbar .view-toggle {
+            display: flex;
+            gap: 4px;
+            background: #f1f5f9;
+            border-radius: 60px;
+            padding: 3px;
+        }
+        .calendar-toolbar .view-toggle .btn {
+            border: none;
+            background: transparent;
+            padding: 4px 14px;
+            font-size: 12px;
+            border-radius: 40px;
+        }
+        .calendar-toolbar .view-toggle .btn.active {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .nav-group { display: flex; align-items: center; gap: 4px; }
+        .nav-group .btn { padding: 4px 10px; font-size: 13px; }
+        .nav-label { font-size: 14px; font-weight: 500; min-width: 100px; text-align: center; }
+
+        .weekday-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .weekday-header span {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+        .cal-cell {
+            background: white;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            padding: 6px 8px;
+            min-height: 70px;
+            cursor: pointer;
+            transition: all var(--transition);
+            display: flex;
+            flex-direction: column;
+        }
+        .cal-cell:hover { border-color: #94a3b8; transform: translateY(-2px); box-shadow: var(--shadow); }
+        .cal-cell.outside { opacity: 0.3; }
+        .cal-cell.today { border: 2px solid var(--primary); }
+        .cal-cell.selected { background: #eff6ff; border-color: var(--primary); }
+        .cal-date {
+            font-weight: 600;
+            font-size: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 4px;
         }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-            text-decoration: none;
-        }
-
-        .user-info {
+        .cal-platform-icons { display: flex; gap: 3px; flex-wrap: wrap; }
+        .cal-platform-icons .picon {
+            font-size: 11px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 1rem;
-        }
-
-        .user-email {
-            color: #333;
-            font-size: 0.9rem;
-        }
-
-        .logout-btn {
-            background: #e74c3c;
+            justify-content: center;
             color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.3s;
+            font-weight: 700;
         }
+        .picon-ig { background: var(--ig); }
+        .picon-fb { background: var(--fb); }
+        .picon-th { background: var(--threads); }
 
-        .logout-btn:hover {
-            background: #c0392b;
+        /* Day Detail */
+        .day-detail-panel {
+            margin-top: 18px;
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-
-        .welcome-card {
-            background: white;
-            border-radius: 10px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        }
-
-        .welcome-card h1 {
-            color: #333;
-            margin-bottom: 0.5rem;
-        }
-
-        .welcome-card p {
-            color: #666;
-        }
-
-        .stats-grid {
+        .day-detail-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
         }
-
-        .stat-card {
+        .platform-card {
             background: white;
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            text-align: center;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 14px 16px;
+            transition: all var(--transition);
         }
-
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .actions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .action-card {
-            background: white;
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .action-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-        }
-
-        .action-card h3 {
-            color: #333;
-            margin-bottom: 1rem;
+        .platform-card:hover { border-color: #94a3b8; box-shadow: var(--shadow); }
+        .platform-card .pheader {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
         }
+        .platform-card .pheader i { font-size: 18px; }
+        .platform-card .pbody { font-size: 13px; color: var(--text-muted); }
+        .platform-card .pbody .label { font-weight: 500; color: var(--text); }
+        .platform-card .pactions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 
-        .action-card p {
-            color: #666;
-            margin-bottom: 1rem;
-            line-height: 1.6;
+        /* ===== CONNECTIONS ===== */
+        .conn-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: white;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            transition: all var(--transition);
+            flex-wrap: wrap;
         }
-
-        .btn {
-            display: inline-block;
-            background: #667eea;
+        .conn-card:hover { border-color: #94a3b8; box-shadow: var(--shadow); }
+        .conn-card .icon-wrap {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
             color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 5px;
-            text-decoration: none;
+            flex-shrink: 0;
+        }
+        .conn-card .info { flex: 1; min-width: 140px; }
+        .conn-card .info .name { font-weight: 600; font-size: 15px; }
+        .conn-card .info .sub { font-size: 13px; color: var(--text-muted); }
+        .conn-card .status-badge {
+            font-size: 12px;
+            padding: 3px 12px;
+            border-radius: 30px;
             font-weight: 500;
-            transition: background 0.3s;
-            border: none;
+        }
+        .status-badge.connected { background: #d1fae5; color: #065f46; }
+        .status-badge.disconnected { background: #fee2e2; color: #991b1b; }
+        .status-badge.pending { background: #fef3c7; color: #92400e; }
+
+        /* ===== AUTOMATION BUILDER ===== */
+        .auto-type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin: 16px 0;
+        }
+        .auto-type-card {
+            background: white;
+            border-radius: var(--radius);
+            border: 2px solid var(--border);
+            padding: 20px 16px;
+            text-align: center;
             cursor: pointer;
-            font-size: 0.9rem;
+            transition: all var(--transition);
+        }
+        .auto-type-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: var(--shadow); }
+        .auto-type-card.selected { border-color: var(--primary); background: #eff6ff; }
+        .auto-type-card .icon { font-size: 32px; margin-bottom: 8px; }
+        .auto-type-card h4 { font-size: 15px; margin-bottom: 4px; }
+        .auto-type-card p { font-size: 12px; color: var(--text-muted); }
+
+        .step-indicator {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .step-indicator .step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .step-indicator .step .num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .step-indicator .step.active .num { background: var(--primary); color: white; }
+        .step-indicator .step.done .num { background: var(--success); color: white; }
+        .step-indicator .step.active { color: var(--text); font-weight: 600; }
+        .step-indicator .line {
+            flex: 1;
+            height: 2px;
+            background: var(--border);
+            max-width: 40px;
+        }
+        .step-indicator .line.done { background: var(--success); }
+
+        .auto-step { display: none; animation: fadeUp 0.3s ease; }
+        .auto-step.active { display: block; }
+
+        .variation-input {
+            background: #f8fafc;
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .variation-input textarea {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 44px;
+            outline: none;
+        }
+        .variation-input .del-var {
+            background: none;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
         }
 
-        .btn:hover {
-            background: #5568d3;
+        .test-result {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            margin-top: 12px;
+        }
+        .test-result .matched { color: var(--success); font-weight: 600; }
+        .test-result .response {
+            background: white;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-top: 6px;
+            border-left: 3px solid var(--primary);
         }
 
-        .btn-secondary {
-            background: #95a5a6;
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 16px;
         }
-
-        .btn-secondary:hover {
-            background: #7f8c8d;
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 24px;
+            padding: 24px 28px;
+            max-width: 640px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: fadeUp 0.25s ease;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.15);
         }
-
-        .loading {
-            text-align: center;
-            padding: 3rem;
-            color: white;
-            font-size: 1.2rem;
+        .modal h2 { margin-bottom: 16px; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+        .modal label { font-weight: 500; font-size: 13px; display: block; margin: 12px 0 4px; }
+        .modal input, .modal textarea, .modal select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: 0.2s;
+            background: white;
         }
-
-        .error-message {
-            background: #e74c3c;
-            color: white;
-            padding: 1rem;
-            border-radius: 5px;
-            margin-bottom: 1rem;
-            text-align: center;
+        .modal input:focus, .modal textarea:focus, .modal select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
         }
+        .modal textarea { min-height: 60px; resize: vertical; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+        .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 480px) { .modal-row { grid-template-columns: 1fr; } }
 
-        @media (max-width: 768px) {
-            .navbar {
-                flex-direction: column;
-                gap: 1rem;
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .day-detail-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 820px) {
+            .sidebar {
+                transform: translateX(-100%);
+                position: fixed;
+                width: 260px;
+                height: 100%;
+                top: 0;
+                left: 0;
+                box-shadow: 4px 0 30px rgba(0,0,0,0.1);
+                border-right: none;
+                background: white;
             }
-
-            .container {
-                padding: 0 1rem;
-            }
-
-            .stats-grid,
-            .actions-grid {
-                grid-template-columns: 1fr;
-            }
+            .sidebar.open { transform: translateX(0); }
+            .header .hamburger { display: block; }
+            .day-detail-grid { grid-template-columns: 1fr 1fr; }
+            .month-grid { gap: 4px; }
+            .cal-cell { min-height: 56px; padding: 4px 6px; }
+            .cal-date { font-size: 11px; }
+            .cal-platform-icons .picon { font-size: 9px; width: 16px; height: 16px; }
         }
+        @media (max-width: 560px) {
+            .content { padding: 12px 14px; }
+            .header { padding: 0 14px; height: 54px; }
+            .header .page-title { font-size: 15px; }
+            .header-actions .btn { font-size: 11px; padding: 4px 10px; }
+            .day-detail-grid { grid-template-columns: 1fr; }
+            .month-grid { gap: 3px; }
+            .cal-cell { min-height: 44px; padding: 3px 4px; border-radius: 6px; }
+            .cal-date { font-size: 10px; }
+            .cal-platform-icons .picon { font-size: 8px; width: 14px; height: 14px; }
+            .weekday-header span { font-size: 9px; }
+            .calendar-toolbar { gap: 6px; }
+            .nav-label { font-size: 12px; min-width: 70px; }
+            .auto-type-grid { grid-template-columns: 1fr 1fr; }
+            .step-indicator { flex-wrap: wrap; gap: 4px; }
+            .step-indicator .step { font-size: 11px; }
+            .step-indicator .line { max-width: 20px; }
+            .conn-card { padding: 12px 14px; }
+            .conn-card .icon-wrap { width: 36px; height: 36px; font-size: 16px; }
+            .modal { padding: 18px; }
+        }
+        @media (max-width: 400px) {
+            .auto-type-grid { grid-template-columns: 1fr; }
+            .calendar-toolbar .view-toggle .btn { font-size: 10px; padding: 2px 10px; }
+        }
+
+        /* scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* helpers */
+        .flex { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .gap-1 { gap: 4px; }
+        .mt-2 { margin-top: 12px; }
+        .mb-2 { margin-bottom: 12px; }
+        .text-muted { color: var(--text-muted); font-size: 13px; }
+        .text-center { text-align: center; }
+        .w-full { width: 100%; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <a href="/" class="logo">SocialFlow AI</a>
-        <div class="user-info">
-            <span class="user-email" id="userEmail">Loading...</span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
+
+<!-- ===== SIDEBAR ===== -->
+<nav class="sidebar" id="sidebar">
+    <div class="logo"><i class="fas fa-calendar-alt"></i> <span>Planner</span></div>
+    <div class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler <span class="badge">12</span></div>
+    <div class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections <span class="badge active-badge">3</span></div>
+    <div class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation <span class="badge warn-badge">2</span></div>
+    <div class="nav-item" data-tab="profile"><i class="fas fa-user"></i> Profile</div>
+    <div class="nav-item" data-tab="settings"><i class="fas fa-sliders-h"></i> Settings</div>
+    <div class="sidebar-footer">
+        <div class="nav-item" id="logoutBtn" style="margin-bottom:8px;"><i class="fas fa-sign-out-alt"></i> Log out</div>
+                <a href="/about" style="color:var(--text-muted);font-size:11px;text-decoration:none;margin-right:8px;">About</a>
+        <a href="/terms" style="color:var(--text-muted);font-size:11px;text-decoration:none;margin-right:8px;">Terms</a>
+        <a href="/privacy-policy" style="color:var(--text-muted);font-size:11px;text-decoration:none;margin-right:8px;">Privacy</a>
+        <a href="/data-deletion" style="color:var(--text-muted);font-size:11px;text-decoration:none;">Data</a>
+    </div>
+</nav>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+    <!-- Header -->
+    <header class="header">
+        <div class="flex">
+            <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+            <span class="page-title" id="pageTitle"><i class="fas fa-calendar-day"></i> Scheduler</span>
         </div>
-    </nav>
+        <div class="header-actions">
+            <button class="btn btn-outline btn-sm" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
+            <button class="btn btn-primary btn-sm" id="addPostBtn"><i class="fas fa-plus"></i> Add</button>
+        </div>
+    </header>
 
-    <div class="container">
-        <div id="loading" class="loading">Loading dashboard...</div>
-        
-        <div id="error" class="error-message" style="display: none;"></div>
+    <!-- Content -->
+    <div class="content">
 
-        <div id="dashboard" style="display: none;">
-            <div class="welcome-card">
-                <h1>Welcome back, <span id="userName">User</span>! 👋</h1>
-                <p>Manage your social media automation from one place.</p>
-            </div>
-
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="postsCount">0</div>
-                    <div class="stat-label">Scheduled Posts</div>
+        <!-- ===== TAB: SCHEDULER ===== -->
+        <div class="tab-content active" id="tab-scheduler">
+            <div class="calendar-toolbar">
+                <div class="nav-group">
+                    <button class="btn btn-outline btn-sm" id="calPrev"><i class="fas fa-chevron-left"></i></button>
+                    <span class="nav-label" id="calLabel">March 2026</span>
+                    <button class="btn btn-outline btn-sm" id="calNext"><i class="fas fa-chevron-right"></i></button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="connectionsCount">0</div>
-                    <div class="stat-label">Connected Accounts</div>
+                <div class="view-toggle">
+                    <button class="btn active" data-view="month">Month</button>
+                    <button class="btn" data-view="week">Week</button>
+                    <button class="btn" data-view="day">Day</button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="automationsCount">0</div>
-                    <div class="stat-label">Active Automations</div>
-                </div>
-            </div>
-
-            <div class="actions-grid">
-                <div class="action-card">
-                    <h3>📝 Create Post</h3>
-                    <p>Schedule new posts across your connected social media accounts. Set date, time, and content.</p>
-                    <button class="btn" onclick="window.location.href='/#create-post'">Create Post</button>
-                </div>
-
-                <div class="action-card">
-                    <h3>🔗 Connect Accounts</h3>
-                    <p>Link your social media accounts to enable automated posting and management.</p>
-                    <button class="btn" onclick="window.location.href='/#connect'">Connect Account</button>
-                </div>
-
-                <div class="action-card">
-                    <h3>⚙️ Setup Automation</h3>
-                    <p>Create custom automation rules to streamline your social media workflow.</p>
-                    <button class="btn" onclick="window.location.href='/#automations'">Setup Automation</button>
-                </div>
-
-                <div class="action-card">
-                    <h3>📊 View Analytics</h3>
-                    <p>Track performance metrics and engagement across all your social channels.</p>
-                    <button class="btn btn-secondary" disabled>Coming Soon</button>
+                <div style="margin-left:auto; display:flex; gap:4px; flex-wrap:wrap;">
+                    <button class="btn btn-sm btn-outline" id="todayBtn">Today</button>
                 </div>
             </div>
+
+            <div id="calendarGrid"></div>
+            <div class="day-detail-panel" id="dayDetailPanel">
+                <div class="text-muted text-center" style="padding:20px 0;">Click a day to see content</div>
+            </div>
+        </div>
+
+        <!-- ===== TAB: CONNECTIONS ===== -->
+        <div class="tab-content" id="tab-connections">
+            <div class="flex-between mb-2">
+                <h3 style="font-weight:600; font-size:18px;">🔗 Platform Connections</h3>
+                <button class="btn btn-primary btn-sm" id="addConnBtn"><i class="fas fa-plus"></i> Add Connection</button>
+            </div>
+            <div class="card-grid" style="gap:12px;" id="connGrid">
+                <div class="text-muted" style="padding:16px;">Loading connections…</div>
+            </div>
+        </div>
+
+        <!-- ===== TAB: AUTOMATION ===== -->
+        <div class="tab-content" id="tab-automation">
+            <div class="flex-between mb-2">
+                <h3 style="font-weight:600; font-size:18px;">⚡ Automation Builder</h3>
+                <button class="btn btn-primary btn-sm" id="newAutoBtn"><i class="fas fa-plus"></i> New Automation</button>
+            </div>
+
+            <!-- Automation List -->
+            <div id="autoList">
+                <div class="card-grid" style="gap:10px;" id="autoGrid">
+                    <div class="text-muted" style="padding:16px;">Loading automations…</div>
+                </div>
+            </div>
+
+            <!-- Automation Builder (hidden by default) -->
+            <div id="autoBuilder" style="display:none; margin-top:16px;">
+                <div class="card">
+                    <div class="flex-between mb-2">
+                        <h4 id="builderTitle" style="font-weight:600;">New Automation</h4>
+                        <button class="btn btn-sm btn-ghost" id="closeBuilder"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="step-indicator" id="stepIndicator">
+                        <div class="step active" data-step="1"><span class="num">1</span> Type</div>
+                        <div class="line"></div>
+                        <div class="step" data-step="2"><span class="num">2</span> Trigger</div>
+                        <div class="line"></div>
+                        <div class="step" data-step="3"><span class="num">3</span> Content</div>
+                        <div class="line"></div>
+                        <div class="step" data-step="4"><span class="num">4</span> Test</div>
+                    </div>
+
+                    <!-- Step 1 -->
+                    <div class="auto-step active" data-step="1">
+                        <label>Automation Name</label>
+                        <input type="text" id="autoNameInput" placeholder="e.g. Price Inquiry Response" style="margin-bottom:12px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
+                        <p class="text-muted mb-2">Choose the type of automation you want to build.</p>
+                        <div class="auto-type-grid" id="autoTypeGrid">
+                            <div class="auto-type-card selected" data-type="keyword">
+                                <div class="icon">📌</div>
+                                <h4>Keyword & Reply</h4>
+                                <p>Reply to comments/DMs when specific keywords are detected</p>
+                            </div>
+                            <div class="auto-type-card" data-type="ai">
+                                <div class="icon">🤖</div>
+                                <h4>AI Auto-Reply</h4>
+                                <p>AI-powered natural language replies</p>
+                            </div>
+                            <div class="auto-type-card" data-type="hybrid">
+                                <div class="icon">🎯</div>
+                                <h4>Keyword + AI Fallback</h4>
+                                <p>Try keyword match first, then AI for generic queries</p>
+                            </div>
+                        </div>
+                        <div class="flex" style="justify-content:flex-end; margin-top:16px;">
+                            <button class="btn btn-primary step-next">Next: Trigger <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="auto-step" data-step="2">
+                        <p class="text-muted mb-2">Configure when this automation should trigger.</p>
+                        <div class="modal-row">
+                            <div><label>Platform</label><select id="autoPlatform"><option value="all">All</option><option value="ig">Instagram</option><option value="fb">Facebook</option><option value="th">Threads</option></select></div>
+                            <div><label>Trigger Type</label><select id="autoTrigger"><option value="both">Comment & DM</option><option value="comment">Comment Only</option><option value="dm">DM Only</option></select></div>
+                        </div>
+                        <div><label>Additional Filters</label>
+                            <div class="flex" style="gap:12px; flex-wrap:wrap;">
+                                <label><input type="checkbox" checked> Only from followers</label>
+                                <label><input type="checkbox"> Min followers: <input type="number" value="100" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;"></label>
+                            </div>
+                        </div>
+                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
+                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-primary step-next">Next: Content <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="auto-step" data-step="3">
+                        <p class="text-muted mb-2">Define the content and responses.</p>
+                        <div id="step3Content">
+                            <!-- Keyword & Reply -->
+                            <div id="kwContent">
+                                <div><label>Keywords (comma separated)</label>
+                                    <input type="text" value="price, pricing, cost, how much" placeholder="e.g. price, discount, support" id="kwInput">
+                                </div>
+                                <div><label>Reply Location</label>
+                                    <select id="replyLocation"><option value="dm">DM</option><option value="comment">Comment</option><option value="both">Both</option></select>
+                                </div>
+                                <label>Reply Variations (5)</label>
+                                <div id="variationsContainer">
+                                    <div class="variation-input"><textarea rows="2">Our pricing starts at $99/month with a 14-day free trial. Would you like to see our full pricing page?</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                    <div class="variation-input"><textarea rows="2">Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                    <div class="variation-input"><textarea rows="2">Great question! Check out our pricing at [link] or DM me for special offers!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                    <div class="variation-input"><textarea rows="2">We have flexible plans starting at $99. What's your budget? I can recommend the best fit!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                    <div class="variation-input"><textarea rows="2">Prices range from $99 to $499/month. I'll DM you our complete pricing guide!</textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
+                                </div>
+                                <button class="btn btn-sm btn-outline" id="addVariation"><i class="fas fa-plus"></i> Add Variation</button>
+                                <div class="flex mt-2"><label style="font-weight:500;">Selection:</label>
+                                    <select><option>Random</option><option>Sequential</option><option>Weighted</option></select>
+                                </div>
+                            </div>
+                            <!-- AI Content -->
+                            <div id="aiContent" style="display:none;">
+                                <div><label>AI Model</label><select><option>GPT-4</option><option>Claude 3</option><option>Gemini</option></select></div>
+                                <div><label>Reply Location</label><select><option>Comment</option><option>DM</option><option>Both</option></select></div>
+                                <div><label>System Prompt</label><textarea rows="3" style="min-height:80px;">You are a friendly customer service agent. Keep responses under 300 characters. Be professional, warm, and helpful. Include emojis occasionally. Don't mention you're an AI.</textarea></div>
+                                <div class="modal-row">
+                                    <div><label>Temperature</label><input type="range" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
+                                    <div><label>Max Tokens</label><input type="number" value="256"></div>
+                                </div>
+                                <label><input type="checkbox" checked> Include conversation history</label>
+                            </div>
+                            <!-- Hybrid Content -->
+                            <div id="hybridContent" style="display:none;">
+                                <p class="text-muted">Keyword rules + AI fallback</p>
+                                <div><label>Keywords</label><input type="text" value="help, support, issue, problem" placeholder="Keywords for rules"></div>
+                                <div><label>Reply</label><input type="text" value="We'll DM you shortly to help!" placeholder="Reply message"></div>
+                                <hr style="margin:12px 0;border-color:var(--border);">
+                                <label><input type="checkbox" checked> Enable AI fallback for generic queries</label>
+                                <div><label>Fallback Model</label><select><option>GPT-4</option><option>Claude 3</option></select></div>
+                                <div><label>Fallback Prompt</label><textarea rows="2">You are a helpful assistant. Respond naturally to generic questions. Keep it brief (under 200 chars).</textarea></div>
+                            </div>
+                        </div>
+                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
+                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-primary step-next">Next: Test <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="auto-step" data-step="4">
+                        <p class="text-muted mb-2">Test your automation before activating.</p>
+                        <div class="flex" style="gap:8px; flex-wrap:wrap;">
+                            <input type="text" placeholder="Type a test message..." id="testInput" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;">
+                            <button class="btn btn-primary" id="runTestBtn"><i class="fas fa-play"></i> Test</button>
+                        </div>
+                        <div id="testResult" class="test-result" style="display:none;">
+                            <div><span class="matched">✅ Matched: Price Inquiry</span> <span class="text-muted" style="font-size:12px;">(95% confidence)</span></div>
+                            <div class="response" id="testResponse">Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!</div>
+                            <div class="text-muted" style="font-size:12px;margin-top:4px;">⏱️ Response time: 1.2s</div>
+                        </div>
+                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
+                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-success" id="activateAutoBtn"><i class="fas fa-check"></i> Activate Automation</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TAB: PROFILE ===== -->
+        <div class="tab-content" id="tab-profile">
+            <div class="card" style="max-width:600px;">
+                <div class="flex" style="gap:16px; margin-bottom:16px;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));display:flex;align-items:center;justify-content:center;font-size:28px;color:white;font-weight:700;flex-shrink:0;">JD</div>
+                    <div><h3 style="font-size:18px;">John Doe</h3><div class="text-muted">Content Manager · john.doe@example.com</div></div>
+                </div>
+                <div class="modal-row">
+                    <div><label>Full Name</label><input type="text" value="John Doe"></div>
+                    <div><label>Email</label><input type="email" value="john.doe@example.com"></div>
+                </div>
+                <div class="modal-row">
+                    <div><label>Phone</label><input type="text" value="+1 555-123-4567"></div>
+                    <div><label>Timezone</label><select><option>America/New York</option><option>America/Los Angeles</option><option>Europe/London</option></select></div>
+                </div>
+                <div><label>Default Platform</label><select><option>Instagram</option><option>Facebook</option><option>Threads</option></select></div>
+                <hr style="margin:16px 0;border-color:var(--border);">
+                <div class="flex" style="gap:20px; flex-wrap:wrap;">
+                    <div><span class="text-muted">Posts</span><br><strong style="font-size:20px;">156</strong></div>
+                    <div><span class="text-muted">Scheduled</span><br><strong style="font-size:20px;">45</strong></div>
+                    <div><span class="text-muted">Auto Replies</span><br><strong style="font-size:20px;">2,341</strong></div>
+                </div>
+                <div class="flex mt-2"><button class="btn btn-primary">Save Changes</button><button class="btn btn-outline">Change Password</button></div>
+            </div>
+        </div>
+
+        <!-- ===== TAB: SETTINGS ===== -->
+        <div class="tab-content" id="tab-settings">
+            <div class="card" style="max-width:640px;">
+                <h4 style="font-weight:600; margin-bottom:12px;">🤖 AI Configuration</h4>
+                <div class="modal-row">
+                    <div><label>Default Model</label><select><option>GPT-4</option><option>Claude 3</option><option>Gemini</option></select></div>
+                    <div><label>API Key</label><input type="password" value="sk-••••••••••••••••••"></div>
+                </div>
+                <div><label>Default System Prompt</label><textarea rows="3">You are a helpful assistant for our business. Be friendly, professional, and concise. Keep responses under 300 chars.</textarea></div>
+                <div class="modal-row">
+                    <div><label>Temperature</label><input type="range" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
+                    <div><label>Max Tokens</label><input type="number" value="2048"></div>
+                </div>
+                <hr style="margin:16px 0;border-color:var(--border);">
+                <h4 style="font-weight:600; margin-bottom:8px;">📝 Default Reply Settings</h4>
+                <label><input type="checkbox" checked> Use AI for generic comments</label><br>
+                <label><input type="checkbox" checked> Send DM reply for questions</label><br>
+                <label><input type="checkbox"> Add emojis to replies</label><br>
+                <div class="mt-2"><label>Default Reply</label><textarea rows="2">Thank you for your interest! We'll get back to you shortly.</textarea></div>
+                <hr style="margin:16px 0;border-color:var(--border);">
+                <h4 style="font-weight:600; margin-bottom:8px;">🔔 Notifications</h4>
+                <label><input type="checkbox" checked> Email notifications</label><br>
+                <label><input type="checkbox" checked> Push notifications for errors</label><br>
+                <label><input type="checkbox"> Weekly summary reports</label><br>
+                <div class="flex mt-2"><button class="btn btn-primary">Save Settings</button><button class="btn btn-outline">Reset to Defaults</button></div>
+            </div>
+        </div>
+
+    </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ===== MODAL ===== -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h2 id="modalHeading"><i class="fas fa-plus-circle" style="color:var(--primary);"></i> Schedule Post</h2>
+        <div class="modal-row">
+            <div><label>Platform</label><select id="modalPlatform"><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="threads">Threads</option></select></div>
+            <div><label>Date</label><input type="date" id="modalDate"></div>
+        </div>
+        <div class="modal-row">
+            <div><label>Time</label><input type="time" id="modalTime" value="14:30"></div>
+            <div><label>Timezone</label><select id="modalTimezone"><option>EST</option><option>PST</option><option>GMT</option></select></div>
+        </div>
+        <label>Title</label><input type="text" id="modalTitle" placeholder="Post title...">
+        <label>Hook</label><input type="text" id="modalHook" placeholder="Attention-grabbing hook...">
+        <label>Caption</label><textarea rows="3" id="modalCaption" placeholder="Full caption..."></textarea>
+        <label>Hashtags</label><input type="text" id="modalHashtags" placeholder="#content #marketing #growth">
+        <div class="text-muted" id="modalError" style="display:none;color:var(--error);font-size:13px;margin-top:6px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" id="closeModal">Cancel</button>
+            <button class="btn btn-primary" id="savePostBtn">Schedule Post</button>
         </div>
     </div>
+</div>
 
-    <script>
-        const API_BASE = '/api/auth';
+<script>
+    // ============================================================
+    // SIDEBAR NAV
+    // ============================================================
+    const sidebar = document.getElementById('sidebar');
+    const hamburger = document.getElementById('hamburgerBtn');
+    const navItems = document.querySelectorAll('.nav-item');
+    const tabContents = {
+        scheduler: document.getElementById('tab-scheduler'),
+        connections: document.getElementById('tab-connections'),
+        automation: document.getElementById('tab-automation'),
+        profile: document.getElementById('tab-profile'),
+        settings: document.getElementById('tab-settings')
+    };
+    const pageTitle = document.getElementById('pageTitle');
+    const titleMap = {
+        scheduler: '<i class="fas fa-calendar-day"></i> Scheduler',
+        connections: '<i class="fas fa-link"></i> Connections',
+        automation: '<i class="fas fa-bolt"></i> Automation',
+        profile: '<i class="fas fa-user"></i> Profile',
+        settings: '<i class="fas fa-sliders-h"></i> Settings'
+    };
 
-        // Check authentication on load
-        async function checkAuth() {
-            // First try session-based auth (cookies)
-            let response;
-            try {
-                response = await fetch(`${API_BASE}/me`, {
-                    credentials: 'include'
-                });
-            } catch (err) {
-                console.error('Session auth failed:', err);
-            }
+    navItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const tab = this.dataset.tab;
+            navItems.forEach(n => n.classList.remove('active'));
+            this.classList.add('active');
+            Object.keys(tabContents).forEach(key => {
+                tabContents[key].classList.toggle('active', key === tab);
+            });
+            pageTitle.innerHTML = titleMap[tab] || 'Scheduler';
+            if (window.innerWidth <= 820) sidebar.classList.remove('open');
+        });
+    });
 
-            // If session fails, try JWT token from localStorage
-            if (!response || !response.ok) {
-                const token = localStorage.getItem('auth_token');
-                if (token) {
-                    try {
-                        response = await fetch(`${API_BASE}/me`, {
-                            credentials: 'include',
-                            headers: { 'Authorization': `Bearer ${token}` }
-                        });
-                    } catch (err) {
-                        console.error('Token auth failed:', err);
-                    }
-                }
-            }
-
-            if (!response || !response.ok) {
-                console.error('Not authenticated');
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').textContent = 'Please login to access the dashboard.';
-                document.getElementById('error').style.display = 'block';
-                
-                setTimeout(() => {
-                    window.location.href = '/index.html';
-                }, 2000);
-                return;
-            }
-
-            const user = await response.json();
-            
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            document.getElementById('userEmail').textContent = user.email;
-            document.getElementById('userName').textContent = user.name || user.email.split('@')[0];
-
-            // Load stats
-            loadStats();
+    hamburger.addEventListener('click', () => sidebar.classList.toggle('open'));
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 820 && !sidebar.contains(e.target) && e.target !== hamburger) {
+            sidebar.classList.remove('open');
         }
+    });
 
-        async function loadStats() {
-            const token = localStorage.getItem('auth_token');
-            const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+    // ============================================================
+    // CALENDAR (simplified but functional)
+    // ============================================================
+    let calDate = new Date();
+    let currentView = 'month';
+    let selectedDay = null;
 
-            try {
-                // Load posts count
-                const postsRes = await fetch('/api/posts', { 
-                    credentials: 'include',
-                    headers: authHeaders
-                });
-                if (postsRes.ok) {
-                    const posts = await postsRes.json();
-                    document.getElementById('postsCount').textContent = posts.length;
-                }
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const PLATFORM_ICONS = { ig: '📸', fb: '📘', th: '🧵' };
+    const PLATFORM_CLASS = { ig: 'picon-ig', fb: 'picon-fb', th: 'picon-th' };
 
-                // Load connections count
-                const connRes = await fetch('/api/connections', { 
-                    credentials: 'include',
-                    headers: authHeaders
-                });
-                if (connRes.ok) {
-                    const connections = await connRes.json();
-                    document.getElementById('connectionsCount').textContent = connections.length;
-                }
+    // ============================================================
+    // APP STATE & API HELPERS
+    // ============================================================
+    let posts = [];
+    let automations = [];
+    let connections = [];
+    let editingPostId = null;
+    let editingAutomationId = null;
 
-                // Load automations count
-                const autoRes = await fetch('/api/automations', { 
-                    credentials: 'include',
-                    headers: authHeaders
-                });
-                if (autoRes.ok) {
-                    const automations = await autoRes.json();
-                    document.getElementById('automationsCount').textContent = automations.length;
-                }
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
+    const SHORT_TO_FULL = { ig: 'instagram', fb: 'facebook', th: 'threads' };
+    const FULL_TO_SHORT = { instagram: 'ig', facebook: 'fb', threads: 'th' };
 
-        async function logout() {
-            const token = localStorage.getItem('auth_token');
-            
-            try {
-                await fetch(`${API_BASE}/logout`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-            
-            // Clear token from localStorage
+    function authHeaders() {
+        const token = localStorage.getItem('auth_token');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    async function apiFetch(url, options = {}) {
+        const res = await fetch(url, {
+            ...options,
+            credentials: 'include',
+            headers: { ...(options.headers || {}), ...authHeaders() }
+        });
+        if (res.status === 401) {
             localStorage.removeItem('auth_token');
-            
-            // Redirect to login page
-            window.location.href = '/index.html';
+            window.location.href = '/';
+            return null;
+        }
+        return res;
+    }
+
+    function getDayPlatforms(day) {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const short = new Set();
+        posts.forEach(p => {
+            if (!p.scheduled_date) return;
+            const d = new Date(p.scheduled_date);
+            if (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
+                (p.platforms || []).forEach(full => { if (FULL_TO_SHORT[full]) short.add(FULL_TO_SHORT[full]); });
+            }
+        });
+        return Array.from(short);
+    }
+
+    function getPostsForDay(day) {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        return posts.filter(p => {
+            if (!p.scheduled_date) return false;
+            const d = new Date(p.scheduled_date);
+            return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+        });
+    }
+
+    function getDayContent(day, platform) {
+        const full = SHORT_TO_FULL[platform];
+        const match = getPostsForDay(day).find(p => (p.platforms || []).includes(full));
+        return match || null;
+    }
+
+    async function loadPosts() {
+        const res = await apiFetch('/api/posts');
+        if (res && res.ok) {
+            posts = await res.json();
+            renderCalendar();
+        }
+    }
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const panel = document.getElementById('dayDetailPanel');
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const label = document.getElementById('calLabel');
+        label.textContent = `${MONTHS[month]} ${year}`;
+
+        if (currentView === 'month') {
+            grid.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'weekday-header';
+            DAYS.forEach(d => { const s = document.createElement('span'); s.textContent = d; header.appendChild(s); });
+            grid.appendChild(header);
+
+            const cells = document.createElement('div');
+            cells.className = 'month-grid';
+            const totalDays = new Date(year, month + 1, 0).getDate();
+            const start = new Date(year, month, 1).getDay();
+            const today = new Date();
+            const totalCells = Math.ceil((start + totalDays) / 7) * 7;
+
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                let dayNum, isOutside = false;
+                if (i < start) {
+                    const prevMonth = new Date(year, month, 0).getDate();
+                    dayNum = prevMonth - start + i + 1;
+                    isOutside = true;
+                } else if (i >= start + totalDays) {
+                    dayNum = i - start - totalDays + 1;
+                    isOutside = true;
+                } else {
+                    dayNum = i - start + 1;
+                }
+                cell.className = 'cal-cell' + (isOutside ? ' outside' : '');
+                if (!isOutside && today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayNum) {
+                    cell.classList.add('today');
+                }
+                if (!isOutside && selectedDay === dayNum) cell.classList.add('selected');
+
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'cal-date';
+                dateDiv.innerHTML = `<span>${dayNum}</span>`;
+                cell.appendChild(dateDiv);
+
+                if (!isOutside) {
+                    const platforms = getDayPlatforms(dayNum);
+                    const icons = document.createElement('div');
+                    icons.className = 'cal-platform-icons';
+                    platforms.forEach(p => {
+                        const span = document.createElement('span');
+                        span.className = `picon ${PLATFORM_CLASS[p] || ''}`;
+                        span.textContent = PLATFORM_ICONS[p] || p;
+                        icons.appendChild(span);
+                    });
+                    cell.appendChild(icons);
+                    cell.dataset.day = dayNum;
+                    cell.addEventListener('click', () => {
+                        selectedDay = dayNum;
+                        renderCalendar();
+                    });
+                } else {
+                    cell.addEventListener('click', () => {
+                        // navigate to prev/next month
+                        if (i < start) calDate.setMonth(month - 1);
+                        else calDate.setMonth(month + 1);
+                        selectedDay = null;
+                        renderCalendar();
+                    });
+                }
+                cells.appendChild(cell);
+            }
+            grid.appendChild(cells);
+            renderDayDetail(panel);
+        } else if (currentView === 'week') {
+            // simplified week view
+            const startOfWeek = new Date(calDate);
+            startOfWeek.setDate(calDate.getDate() - calDate.getDay());
+            grid.innerHTML = `<div class="text-muted" style="padding:20px;text-align:center;">Week of ${startOfWeek.toDateString()}</div>`;
+            const weekGrid = document.createElement('div');
+            weekGrid.className = 'month-grid';
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(startOfWeek);
+                d.setDate(d.getDate() + i);
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell';
+                cell.innerHTML = `<div class="cal-date"><span>${d.getDate()}</span></div><div class="cal-platform-icons">${getDayPlatforms(d.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('')}</div>`;
+                weekGrid.appendChild(cell);
+            }
+            grid.appendChild(weekGrid);
+            panel.innerHTML = '<div class="text-muted text-center" style="padding:16px 0;">Week view — click a day for details</div>';
+        } else {
+            // day view
+            grid.innerHTML = `<div class="text-muted" style="padding:20px;text-align:center;">${DAYS[calDate.getDay()]}, ${MONTHS[calDate.getMonth()]} ${calDate.getDate()}, ${calDate.getFullYear()}</div>`;
+            const dayGrid = document.createElement('div');
+            dayGrid.className = 'month-grid';
+            const cell = document.createElement('div');
+            cell.className = 'cal-cell';
+            cell.innerHTML = `<div class="cal-date"><span>${calDate.getDate()}</span></div><div class="cal-platform-icons">${getDayPlatforms(calDate.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('')}</div>`;
+            dayGrid.appendChild(cell);
+            grid.appendChild(dayGrid);
+            renderDayDetail(panel);
+        }
+    }
+
+    function renderDayDetail(panel) {
+        const day = selectedDay || calDate.getDate();
+        const platforms = getDayPlatforms(day);
+        if (platforms.length === 0 && selectedDay === null) {
+            panel.innerHTML = '<div class="text-muted text-center" style="padding:20px 0;">Click a day to see content</div>';
+            return;
+        }
+        const month = calDate.getMonth() + 1;
+        panel.innerHTML = `<div class="flex-between mb-2"><span style="font-weight:600;">${MONTHS[calDate.getMonth()]} ${day}, ${calDate.getFullYear()} — ${platforms.length} items</span><button class="btn btn-sm btn-primary" onclick="openModal(${day})"><i class="fas fa-plus"></i> Add</button></div>`;
+
+        if (platforms.length === 0) {
+            panel.innerHTML += '<div class="text-muted text-center" style="padding:16px 0;">No content scheduled for this day.</div>';
+            return;
         }
 
-        // Initialize
-        checkAuth();
-    </script>
+        const grid = document.createElement('div');
+        grid.className = 'day-detail-grid';
+        const platformNames = { ig: 'Instagram', fb: 'Facebook', th: 'Threads' };
+        const platformIcons = { ig: 'fab fa-instagram', fb: 'fab fa-facebook-f', th: 'fas fa-threads' };
+        const platformColors = { ig: 'var(--ig)', fb: 'var(--fb)', th: 'var(--threads)' };
+
+        platforms.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'platform-card';
+            const content = getDayContent(day, p);
+            const caption = content && content.caption ? content.caption : '';
+            card.innerHTML = `
+                <div class="pheader"><i class="${platformIcons[p]}" style="color:${platformColors[p]};"></i> ${platformNames[p]}</div>
+                <div class="pbody">
+                    ${content ? `<div><span class="label">Title:</span> ${content.title || ''}</div><div><span class="label">Hook:</span> ${content.hook || ''}</div><div class="text-muted" style="font-size:12px;">${caption.substring(0,60)}${caption.length>60?'...':''}</div><div class="text-muted" style="font-size:11px;margin-top:2px;">Status: ${content.status || 'draft'}</div>` : '<span class="text-muted">No content set</span>'}
+                </div>
+                <div class="pactions">
+                    <button class="btn btn-sm btn-outline post-edit-btn"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-ghost post-delete-btn" style="color:var(--error);"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-sm btn-success post-now-btn">Post Now</button>
+                </div>
+            `;
+            if (content) {
+                card.querySelector('.post-edit-btn').addEventListener('click', () => openModal(day, content));
+                card.querySelector('.post-delete-btn').addEventListener('click', () => deletePost(content.id));
+                card.querySelector('.post-now-btn').addEventListener('click', () => publishPostNow(content.id));
+            } else {
+                card.querySelector('.post-edit-btn').style.display = 'none';
+                card.querySelector('.post-delete-btn').style.display = 'none';
+                card.querySelector('.post-now-btn').addEventListener('click', () => openModal(day));
+            }
+            grid.appendChild(card);
+        });
+        panel.appendChild(grid);
+    }
+
+    async function deletePost(id) {
+        if (!confirm('Delete this post?')) return;
+        const res = await apiFetch(`/api/posts/${id}`, { method: 'DELETE' });
+        if (res && res.ok) await loadPosts();
+    }
+
+    async function publishPostNow(id) {
+        if (!confirm('Publish this post now?')) return;
+        const res = await apiFetch(`/api/posts/${id}/publish-now`, { method: 'POST' });
+        if (res && res.ok) {
+            await loadPosts();
+        } else if (res) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || 'Failed to publish post');
+        }
+    }
+
+    // Navigation
+    document.getElementById('calPrev').addEventListener('click', () => { calDate.setMonth(calDate.getMonth() - 1); selectedDay = null; renderCalendar(); });
+    document.getElementById('calNext').addEventListener('click', () => { calDate.setMonth(calDate.getMonth() + 1); selectedDay = null; renderCalendar(); });
+    document.getElementById('todayBtn').addEventListener('click', () => { calDate = new Date(); selectedDay = null; renderCalendar(); });
+
+    document.querySelectorAll('.view-toggle .btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.view-toggle .btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentView = this.dataset.view;
+            renderCalendar();
+        });
+    });
+
+    // ============================================================
+    // MODAL
+    // ============================================================
+    const modalOverlay = document.getElementById('modalOverlay');
+    document.getElementById('addPostBtn').addEventListener('click', () => openModal());
+    document.getElementById('closeModal').addEventListener('click', () => modalOverlay.classList.remove('show'));
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('show'); });
+
+    function openModal(day, existingPost) {
+        modalOverlay.classList.add('show');
+        const modalError = document.getElementById('modalError');
+        modalError.style.display = 'none';
+        if (existingPost) {
+            editingPostId = existingPost.id;
+            document.getElementById('modalHeading').innerHTML = '<i class="fas fa-edit" style="color:var(--primary);"></i> Edit Post';
+            document.getElementById('savePostBtn').textContent = 'Save Changes';
+            const d = new Date(existingPost.scheduled_date);
+            document.getElementById('modalDate').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            document.getElementById('modalTime').value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('modalPlatform').value = (existingPost.platforms || [])[0] || 'instagram';
+            document.getElementById('modalTitle').value = existingPost.title || '';
+            document.getElementById('modalHook').value = existingPost.hook || '';
+            document.getElementById('modalCaption').value = existingPost.caption || '';
+        } else {
+            editingPostId = null;
+            document.getElementById('modalHeading').innerHTML = '<i class="fas fa-plus-circle" style="color:var(--primary);"></i> Schedule Post';
+            document.getElementById('savePostBtn').textContent = 'Schedule Post';
+            const d = day || calDate.getDate();
+            document.getElementById('modalDate').value = `${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            document.getElementById('modalTime').value = '14:30';
+            document.getElementById('modalPlatform').value = 'instagram';
+            document.getElementById('modalTitle').value = '';
+            document.getElementById('modalHook').value = '';
+            document.getElementById('modalCaption').value = '';
+            document.getElementById('modalHashtags').value = '';
+        }
+    }
+    window.openModal = openModal;
+
+    document.getElementById('savePostBtn').addEventListener('click', async () => {
+        const modalError = document.getElementById('modalError');
+        const title = document.getElementById('modalTitle').value.trim();
+        const date = document.getElementById('modalDate').value;
+        const time = document.getElementById('modalTime').value || '00:00';
+        const platform = document.getElementById('modalPlatform').value;
+        if (!title || !date) {
+            modalError.textContent = 'Title and date are required.';
+            modalError.style.display = 'block';
+            return;
+        }
+        const body = {
+            title,
+            hook: document.getElementById('modalHook').value,
+            caption: document.getElementById('modalCaption').value,
+            platforms: [platform],
+            scheduled_date: new Date(`${date}T${time}`).toISOString(),
+            status: 'scheduled'
+        };
+        const url = editingPostId ? `/api/posts/${editingPostId}` : '/api/posts';
+        const method = editingPostId ? 'PUT' : 'POST';
+        const res = await apiFetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (res && res.ok) {
+            modalOverlay.classList.remove('show');
+            await loadPosts();
+        } else if (res) {
+            const data = await res.json().catch(() => ({}));
+            modalError.textContent = data.error || 'Failed to save post';
+            modalError.style.display = 'block';
+        }
+    });
+
+    // ============================================================
+    // AUTOMATION BUILDER
+    // ============================================================
+    let currentStep = 1;
+    const builder = document.getElementById('autoBuilder');
+    const autoList = document.getElementById('autoList');
+    const newAutoBtn = document.getElementById('newAutoBtn');
+    const closeBuilder = document.getElementById('closeBuilder');
+
+    newAutoBtn.addEventListener('click', () => {
+        autoList.style.display = 'none';
+        builder.style.display = 'block';
+        document.getElementById('builderTitle').textContent = 'New Automation';
+        editingAutomationId = null;
+        document.getElementById('autoNameInput').value = '';
+        document.getElementById('kwInput').value = '';
+        document.querySelectorAll('.variation-input textarea').forEach((ta, i) => { if (i > 0) ta.closest('.variation-input').remove(); else ta.value = ''; });
+        document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
+        document.querySelector('.auto-type-card[data-type="keyword"]').classList.add('selected');
+        document.getElementById('kwContent').style.display = 'block';
+        document.getElementById('aiContent').style.display = 'none';
+        document.getElementById('hybridContent').style.display = 'none';
+        currentStep = 1;
+        showStep(1);
+    });
+
+    closeBuilder.addEventListener('click', () => {
+        builder.style.display = 'none';
+        autoList.style.display = 'block';
+    });
+
+    // Type selection
+    document.querySelectorAll('.auto-type-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            const type = this.dataset.type;
+            document.getElementById('kwContent').style.display = type === 'keyword' || type === 'hybrid' ? 'block' : 'none';
+            document.getElementById('aiContent').style.display = type === 'ai' ? 'block' : 'none';
+            document.getElementById('hybridContent').style.display = type === 'hybrid' ? 'block' : 'none';
+            if (type === 'hybrid') {
+                document.getElementById('kwContent').style.display = 'block';
+            }
+        });
+    });
+
+    // Step navigation
+    function showStep(step) {
+        document.querySelectorAll('.auto-step').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.auto-step[data-step="${step}"]`).classList.add('active');
+        document.querySelectorAll('.step-indicator .step').forEach(el => {
+            const s = parseInt(el.dataset.step);
+            el.classList.toggle('active', s === step);
+            el.classList.toggle('done', s < step);
+        });
+        document.querySelectorAll('.step-indicator .line').forEach((el, idx) => {
+            el.classList.toggle('done', idx < step - 1);
+        });
+        currentStep = step;
+    }
+
+    document.querySelectorAll('.step-next').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const next = currentStep + 1;
+            if (next <= 4) showStep(next);
+        });
+    });
+    document.querySelectorAll('.step-prev').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const prev = currentStep - 1;
+            if (prev >= 1) showStep(prev);
+        });
+    });
+
+    // Add variation
+    document.getElementById('addVariation').addEventListener('click', () => {
+        const container = document.getElementById('variationsContainer');
+        const div = document.createElement('div');
+        div.className = 'variation-input';
+        div.innerHTML = `<textarea rows="2">New variation text...</textarea><button class="del-var"><i class="fas fa-times"></i></button>`;
+        container.appendChild(div);
+        div.querySelector('.del-var').addEventListener('click', () => div.remove());
+    });
+    document.querySelectorAll('.del-var').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (document.querySelectorAll('.variation-input').length > 1) {
+                this.closest('.variation-input').remove();
+            }
+        });
+    });
+
+    // Test
+    document.getElementById('runTestBtn').addEventListener('click', () => {
+        const input = document.getElementById('testInput').value || 'How much does it cost?';
+        const result = document.getElementById('testResult');
+        result.style.display = 'block';
+        document.getElementById('testResponse').textContent = 'Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!';
+        // animate
+        result.style.animation = 'none';
+        setTimeout(() => result.style.animation = 'fadeUp 0.3s ease', 10);
+    });
+
+    document.getElementById('activateAutoBtn').addEventListener('click', async () => {
+        const name = document.getElementById('autoNameInput').value.trim();
+        if (!name) { alert('Please give this automation a name (Step 1).'); showStep(1); return; }
+        const selectedType = document.querySelector('.auto-type-card.selected')?.dataset.type || 'keyword';
+        const triggerRaw = document.getElementById('autoTrigger').value; // 'comment' | 'dm' | 'both'
+        const type = triggerRaw === 'dm' ? 'dm' : 'comment'; // backend only accepts 'comment' or 'dm'
+        const platformSel = document.getElementById('autoPlatform').value;
+        const platforms = platformSel === 'all' ? ['instagram', 'facebook', 'threads'] : [SHORT_TO_FULL[platformSel] || 'instagram'];
+
+        const keywords = selectedType !== 'ai'
+            ? document.getElementById('kwInput').value.split(',').map(k => k.trim()).filter(Boolean)
+            : [];
+        const variations = selectedType !== 'ai'
+            ? Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean)
+            : [];
+        const ai_prompt = selectedType !== 'keyword'
+            ? (document.querySelector('#aiContent textarea')?.value.trim() || null)
+            : null;
+
+        const body = { name, type, keywords, ai_prompt, variations, platforms };
+        const res = await apiFetch('/api/automations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (res && res.ok) {
+            await loadAutomations();
+            closeBuilder.click();
+        } else if (res) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || 'Failed to save automation');
+        }
+    });
+
+    // ============================================================
+    // AUTOMATIONS: LOAD & RENDER
+    // ============================================================
+    async function loadAutomations() {
+        const res = await apiFetch('/api/automations');
+        if (res && res.ok) {
+            automations = await res.json();
+            renderAutomations();
+        }
+    }
+
+    function renderAutomations() {
+        const grid = document.getElementById('autoGrid');
+        grid.innerHTML = '';
+        if (automations.length === 0) {
+            grid.innerHTML = '<div class="text-muted" style="padding:16px;">No automations yet — click "New Automation" to create one.</div>';
+            return;
+        }
+        automations.forEach(a => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.padding = '14px 18px';
+            const kwSummary = (a.keywords && a.keywords.length) ? `Keywords: ${a.keywords.join(', ')}` : '';
+            const varSummary = (a.variations && a.variations.length) ? ` · ${a.variations.length} reply variations` : '';
+            const aiSummary = a.ai_prompt ? 'AI reply configured' : '';
+            card.innerHTML = `
+                <div class="flex-between">
+                    <div><span style="font-weight:600;">${a.name}</span> <span class="badge ${a.is_active ? 'active-badge' : ''}" style="margin-left:8px;${a.is_active ? '' : 'background:#fef3c7;color:#92400e;'}">${a.is_active ? 'Active' : 'Paused'}</span></div>
+                    <span class="text-muted" style="font-size:12px;">${(a.type || '').toUpperCase()}</span>
+                </div>
+                <div class="text-muted" style="font-size:13px;">${[kwSummary, aiSummary].filter(Boolean).join(' · ')}${varSummary}</div>
+                <div class="flex mt-2">
+                    <button class="btn btn-sm btn-outline auto-dup-btn">Duplicate</button>
+                    <button class="btn btn-sm btn-ghost auto-toggle-btn">${a.is_active ? 'Pause' : 'Resume'}</button>
+                    <button class="btn btn-sm btn-ghost auto-delete-btn" style="color:var(--error);"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            card.querySelector('.auto-toggle-btn').addEventListener('click', () => toggleAutomation(a.id));
+            card.querySelector('.auto-delete-btn').addEventListener('click', () => deleteAutomation(a.id));
+            card.querySelector('.auto-dup-btn').addEventListener('click', () => {
+                autoList.style.display = 'none';
+                builder.style.display = 'block';
+                document.getElementById('builderTitle').textContent = 'Duplicate: ' + a.name;
+                document.getElementById('autoNameInput').value = a.name + ' (copy)';
+                document.getElementById('kwInput').value = (a.keywords || []).join(', ');
+                currentStep = 1;
+                showStep(1);
+            });
+            grid.appendChild(card);
+        });
+    }
+
+    async function toggleAutomation(id) {
+        const res = await apiFetch(`/api/automations/${id}/toggle`, { method: 'PATCH' });
+        if (res && res.ok) await loadAutomations();
+    }
+
+    async function deleteAutomation(id) {
+        if (!confirm('Delete this automation?')) return;
+        const res = await apiFetch(`/api/automations/${id}`, { method: 'DELETE' });
+        if (res && res.ok) await loadAutomations();
+    }
+
+    // ============================================================
+    // CONNECTIONS: LOAD & RENDER
+    // ============================================================
+    const PLATFORM_META = {
+        instagram: { name: 'Instagram Business', icon: 'fab fa-instagram', color: 'var(--ig)' },
+        facebook: { name: 'Facebook Business', icon: 'fab fa-facebook-f', color: 'var(--fb)' },
+        threads: { name: 'Threads', icon: 'fas fa-threads', color: 'var(--threads)' }
+    };
+
+    async function loadConnections() {
+        const res = await apiFetch('/api/connections');
+        if (res && res.ok) {
+            connections = await res.json();
+            renderConnections();
+        }
+    }
+
+    function renderConnections() {
+        const grid = document.getElementById('connGrid');
+        grid.innerHTML = '';
+        Object.keys(PLATFORM_META).forEach(platform => {
+            const meta = PLATFORM_META[platform];
+            const conn = connections.find(c => c.platform === platform && c.is_connected);
+            const card = document.createElement('div');
+            card.className = 'conn-card';
+            card.innerHTML = `
+                <div class="icon-wrap" style="background:${meta.color};"><i class="${meta.icon}"></i></div>
+                <div class="info"><div class="name">${meta.name}</div><div class="sub">${conn ? (conn.account_name || conn.account_id) : 'Connect your ' + meta.name + ' account'}</div></div>
+                <span class="status-badge ${conn ? 'connected' : 'disconnected'}">${conn ? '● Connected' : '○ Not Connected'}</span>
+                <div class="flex">${conn ? '<button class="btn btn-sm btn-ghost conn-disconnect-btn">Disconnect</button>' : '<button class="btn btn-primary btn-sm conn-connect-btn">Connect</button>'}</div>
+            `;
+            if (conn) {
+                card.querySelector('.conn-disconnect-btn').addEventListener('click', () => disconnectPlatform(conn.id));
+            } else {
+                card.querySelector('.conn-connect-btn').addEventListener('click', () => connectPlatform(platform));
+            }
+            grid.appendChild(card);
+        });
+    }
+
+    async function connectPlatform(platform) {
+        const account_name = prompt(`Account name / handle for ${PLATFORM_META[platform].name}:`);
+        if (account_name === null) return;
+        const account_id = prompt('Account ID (from the platform):');
+        if (!account_id) return;
+        const access_token = prompt('Access token:');
+        if (!access_token) return;
+        const res = await apiFetch('/api/connections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform, account_name, account_id, access_token })
+        });
+        if (res && res.ok) {
+            await loadConnections();
+        } else if (res) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || 'Failed to connect');
+        }
+    }
+
+    async function disconnectPlatform(id) {
+        if (!confirm('Disconnect this account?')) return;
+        const res = await apiFetch(`/api/connections/${id}`, { method: 'DELETE' });
+        if (res && res.ok) await loadConnections();
+    }
+    document.getElementById('addConnBtn').addEventListener('click', () => {
+        document.querySelector('.nav-item[data-tab="connections"]').click();
+    });
+
+    // ============================================================
+    // AUTH GUARD, LOGOUT & INIT
+    // ============================================================
+    async function checkAuthAndInit() {
+        const token = localStorage.getItem('auth_token');
+        const res = await fetch('/api/auth/me', { credentials: 'include', headers: authHeaders() });
+        if (!res.ok) {
+            localStorage.removeItem('auth_token');
+            window.location.href = '/';
+            return;
+        }
+        const data = await res.json();
+        const nameEl = document.querySelector('#tab-profile h3');
+        const emailEl = document.querySelector('#tab-profile .text-muted');
+        if (nameEl) nameEl.textContent = data.user.name || data.user.email;
+        if (emailEl) emailEl.textContent = `${data.user.name || ''} · ${data.user.email}`.replace(/^ · /, '');
+        loadPosts();
+        loadAutomations();
+        loadConnections();
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await apiFetch('/api/auth/logout', { method: 'POST' });
+        localStorage.removeItem('auth_token');
+        window.location.href = '/';
+    });
+
+    checkAuthAndInit();
+
+    // ============================================================
+    // REFRESH
+    // ============================================================
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        const btn = document.getElementById('refreshBtn');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        Promise.all([loadPosts(), loadAutomations(), loadConnections()]).finally(() => {
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        });
+    });
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    renderCalendar();
+
+    // Set default date in modal
+    const now = new Date();
+    document.getElementById('modalDate').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+    console.log('🚀 Content Planner ready!');
+</script>
 </body>
 </html>
