@@ -221,6 +221,50 @@
         }
         .card:hover { border-color: #cbd5e1; }
         .card-grid { display: grid; gap: 16px; }
+        .card-grid#connGrid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+        
+        /* Connection Cards Specific Styles */
+        .d-flex { display: flex !important; }
+        .flex-column { flex-direction: column !important; }
+        .align-items-center { align-items: center !important; }
+        .justify-content-center { justify-content: center !important; }
+        .mb-0 { margin-bottom: 0 !important; }
+        .mb-2 { margin-bottom: 8px !important; }
+        .mb-3 { margin-bottom: 12px !important; }
+        .mt-3 { margin-top: 12px !important; }
+        .me-1 { margin-right: 4px !important; }
+        .me-2 { margin-right: 8px !important; }
+        .me-3 { margin-right: 12px !important; }
+        .ms-2 { margin-left: 8px !important; }
+        .p-3 { padding: 12px !important; }
+        .w-100 { width: 100% !important; }
+        .h-100 { height: 100% !important; }
+        .text-muted { color: var(--text-muted) !important; }
+        .text-white { color: white !important; }
+        .text-success { color: var(--success) !important; }
+        .text-danger { color: var(--error) !important; }
+        .text-primary { color: var(--primary) !important; }
+        .text-dark { color: #1e1e2f !important; }
+        .bg-success { background-color: var(--success) !important; }
+        .bg-danger { background-color: var(--error) !important; }
+        .bg-primary { background-color: var(--primary) !important; }
+        .bg-dark { background-color: #1e1e2f !important; }
+        .bg-opacity-10 { opacity: 0.1 !important; }
+        .rounded-circle { border-radius: 50% !important; }
+        .shadow-sm { box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important; }
+        .border-0 { border: none !important; }
+        .flex-grow-1 { flex-grow: 1 !important; }
+        .connection-card .icon-box {
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bg-gradient-instagram {
+            background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+        }
+        .connection-status { margin-top: auto; }
 
         /* ===== SCHEDULER ===== */
         .calendar-toolbar {
@@ -663,8 +707,118 @@
             <div class="flex-between mb-2">
                 <h3 style="font-weight:600; font-size:18px;">🔗 Platform Connections</h3>
             </div>
+            
+            <!-- Connection Cards Grid - Static Definition (No API Load Needed for UI) -->
             <div class="card-grid" style="gap:12px;" id="connGrid">
-                <div class="text-muted" style="padding:16px;">Loading connections…</div>
+                <!-- Google Sheets -->
+                <div class="card connection-card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box bg-success bg-opacity-10 text-success rounded-circle p-3 me-3">
+                                <i class="fas fa-file-excel fa-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Google Sheets</h5>
+                                <small class="text-muted">Data & Content Planning</small>
+                            </div>
+                        </div>
+                        <p class="text-muted flex-grow-1">Connect to Google Sheets to automate content planning and data synchronization.</p>
+                        
+                        <div id="conn-status-sheets" class="connection-status mt-3">
+                            <button class="btn btn-outline-success w-100" onclick="connectPlatform('google_sheets')">
+                                <i class="fas fa-link me-2"></i>Connect Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Google Drive -->
+                <div class="card connection-card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box bg-danger bg-opacity-10 text-danger rounded-circle p-3 me-3">
+                                <i class="fab fa-google-drive fa-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Google Drive</h5>
+                                <small class="text-muted">Media Storage</small>
+                            </div>
+                        </div>
+                        <p class="text-muted flex-grow-1">Store and access media files directly from your Google Drive for posts.</p>
+                        
+                        <div id="conn-status-drive" class="connection-status mt-3">
+                            <button class="btn btn-outline-danger w-100" onclick="connectPlatform('google_drive')">
+                                <i class="fas fa-link me-2"></i>Connect Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Facebook -->
+                <div class="card connection-card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box bg-primary bg-opacity-10 text-primary rounded-circle p-3 me-3">
+                                <i class="fab fa-facebook-f fa-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Facebook</h5>
+                                <small class="text-muted">Social Engagement</small>
+                            </div>
+                        </div>
+                        <p class="text-muted flex-grow-1">Connect your Facebook Pages to schedule posts and manage comments.</p>
+                        
+                        <div id="conn-status-facebook" class="connection-status mt-3">
+                            <button class="btn btn-outline-primary w-100" onclick="connectPlatform('facebook')">
+                                <i class="fas fa-link me-2"></i>Connect Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Instagram -->
+                <div class="card connection-card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box bg-gradient-instagram rounded-circle p-3 me-3 text-white">
+                                <i class="fab fa-instagram fa-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Instagram</h5>
+                                <small class="text-muted">Visual Storytelling</small>
+                            </div>
+                        </div>
+                        <p class="text-muted flex-grow-1">Link your Instagram Business account to schedule reels and posts.</p>
+                        
+                        <div id="conn-status-instagram" class="connection-status mt-3">
+                            <button class="btn btn-outline-dark w-100" onclick="connectPlatform('instagram')">
+                                <i class="fas fa-link me-2"></i>Connect Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Threads -->
+                <div class="card connection-card h-100 shadow-sm border-0">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box bg-dark bg-opacity-10 text-dark rounded-circle p-3 me-3">
+                                <i class="fas fa-at fa-lg"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Threads</h5>
+                                <small class="text-muted">Real-time Conversation</small>
+                            </div>
+                        </div>
+                        <p class="text-muted flex-grow-1">Connect to Threads to engage in real-time conversations and scheduling.</p>
+                        
+                        <div id="conn-status-threads" class="connection-status mt-3">
+                            <button class="btn btn-outline-dark w-100" onclick="connectPlatform('threads')">
+                                <i class="fas fa-link me-2"></i>Connect Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1489,52 +1643,56 @@
     // CONNECTIONS: LOAD & RENDER
     // ============================================================
     const PLATFORM_META = {
-        google_sheets: { name: 'Google Sheets', icon: 'fas fa-table', color: '#0f9d58' },
+        google_sheets: { name: 'Google Sheets', icon: 'fas fa-file-excel', color: '#0f9d58' },
         google_drive: { name: 'Google Drive', icon: 'fab fa-google-drive', color: '#4285f4' },
         facebook: { name: 'Facebook', icon: 'fab fa-facebook-f', color: 'var(--fb)' },
         instagram: { name: 'Instagram', icon: 'fab fa-instagram', color: 'var(--ig)' },
-        threads: { name: 'Threads', icon: 'fas fa-threads', color: 'var(--threads)' }
+        threads: { name: 'Threads', icon: 'fas fa-at', color: 'var(--threads)' }
     };
 
     async function loadConnections() {
-        const grid = document.getElementById('connGrid');
-        try {
-            const res = await apiFetch('/api/connections');
-            if (res && res.ok) {
-                connections = await res.json();
-                renderConnections();
-            } else {
-                // Handle non-OK responses (e.g., 500, 401)
-                grid.innerHTML = `<div class="text-muted" style="padding:16px;">Failed to load connections. Please refresh the page.</div>`;
-            }
-        } catch (err) {
-            // Handle network errors or other exceptions
-            console.error('Error loading connections:', err);
-            grid.innerHTML = `<div class="text-muted" style="padding:16px;">Failed to load connections. Please ensure the server is running and refresh the page.</div>`;
+        // Only update the status of existing static cards based on connection state
+        const res = await apiFetch('/api/connections').catch(() => null);
+        if (res && res.ok) {
+            connections = await res.json();
+        } else {
+            connections = [];
         }
+        
+        // Update each card's status based on connection state
+        Object.keys(PLATFORM_META).forEach(platform => {
+            const conn = connections.find(c => c.platform === platform && c.is_connected);
+            const statusDiv = document.getElementById(`conn-status-${platform === 'google_sheets' ? 'sheets' : platform === 'google_drive' ? 'drive' : platform}`);
+            if (!statusDiv) return;
+            
+            if (conn) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success mb-2" style="padding:8px 12px;border-radius:8px;font-size:13px;">
+                        <i class="fas fa-check-circle me-1"></i> Connected
+                        ${conn.account_name ? `<br><small>${conn.account_name}</small>` : ''}
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger w-100" onclick="disconnectPlatform('${conn.id}')">
+                        <i class="fas fa-unlink me-2"></i>Disconnect
+                    </button>
+                `;
+            } else {
+                const meta = PLATFORM_META[platform];
+                const btnColor = platform === 'google_sheets' ? 'success' : 
+                                platform === 'google_drive' ? 'danger' : 
+                                platform === 'facebook' ? 'primary' : 'dark';
+                statusDiv.innerHTML = `
+                    <button class="btn btn-outline-${btnColor} w-100" onclick="connectPlatform('${platform}')">
+                        <i class="fas fa-link me-2"></i>Connect Account
+                    </button>
+                `;
+            }
+        });
     }
 
+    // renderConnections is no longer needed since cards are static
     function renderConnections() {
-        const grid = document.getElementById('connGrid');
-        grid.innerHTML = '';
-        Object.keys(PLATFORM_META).forEach(platform => {
-            const meta = PLATFORM_META[platform];
-            const conn = connections.find(c => c.platform === platform && c.is_connected);
-            const card = document.createElement('div');
-            card.className = 'conn-card';
-            card.innerHTML = `
-                <div class="icon-wrap" style="background:${meta.color};"><i class="${meta.icon}"></i></div>
-                <div class="info"><div class="name">${meta.name}</div><div class="sub">${conn ? (conn.account_name || conn.account_id) : 'Connect your ' + meta.name + ' account'}</div></div>
-                <span class="status-badge ${conn ? 'connected' : 'disconnected'}">${conn ? '● Connected' : '○ Not Connected'}</span>
-                <div class="flex">${conn ? '<button class="btn btn-sm btn-ghost conn-disconnect-btn">Disconnect</button>' : '<button class="btn btn-primary btn-sm conn-connect-btn">Connect</button>'}</div>
-            `;
-            if (conn) {
-                card.querySelector('.conn-disconnect-btn').addEventListener('click', () => disconnectPlatform(conn.id));
-            } else {
-                card.querySelector('.conn-connect-btn').addEventListener('click', () => connectPlatform(platform));
-            }
-            grid.appendChild(card);
-        });
+        // Cards are now statically defined in HTML
+        loadConnections(); // Just update their status
     }
 
     // Real OAuth connect: this is a full-page redirect (not a fetch), so the
