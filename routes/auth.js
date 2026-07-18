@@ -1,5 +1,27 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { login, register } = require('../lib/auth');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-in-production';
+
+// Resolve the current user id from either the session or a Bearer JWT,
+// mirroring the logic in lib/auth.js's requireAuth middleware.
+function resolveUserId(req) {
+  if (req.session && req.session.userId) {
+    return req.session.userId;
+  }
+  const header = req.headers.authorization || '';
+  const [scheme, token] = header.split(' ');
+  if (scheme === 'Bearer' && token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      return payload.sub;
+    } catch (err) {
+      return null;
+    }
+  }
+  return null;
+}
 
 function router(pool) {
   const r = express.Router();
@@ -43,12 +65,13 @@ function router(pool) {
   });
 
   r.get('/me', async (req, res) => {
-    if (!req.session.userId) {
+    const userId = resolveUserId(req);
+    if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
-    const result = await pool.query('SELECT id, email, name FROM users WHERE id = $1 AND is_active = true', [req.session.userId]);
+    const result = await pool.query('SELECT id, email, name FROM users WHERE id = $1 AND is_active = true', [userId]);
     if (result.rows.length === 0) {
-      req.session.destroy();
+      if (req.session) req.session.destroy();
       return res.status(401).json({ error: 'User not found' });
     }
     res.json({ user: result.rows[0] });
