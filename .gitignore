@@ -1,15 +1,1 @@
-```
-# Dependencies
-node_modules/
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Logs
-*.log
-
-# Package lock
-package-lock.json
-```
+Nothing needs to be added to .gitignore since the changes only include source files (.html, .js) and not any build artifacts, dependencies, or temporary files that should be ignored.
