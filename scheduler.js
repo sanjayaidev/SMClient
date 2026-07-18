@@ -4,19 +4,17 @@ const instagram = require('./platforms/instagram');
 const facebook = require('./platforms/facebook');
 const threads = require('./platforms/threads');
 
-// Picks the most-recently-connected account for a platform. If you manage
-// multiple accounts per platform, extend `posts` with a connection_id column
-// and select by that instead — this is a single-account-per-platform default.
-async function getConnection(pool, platform) {
+// Picks the most-recently-connected account for a platform per user.
+async function getConnection(pool, platform, userId) {
   const res = await pool.query(
-    'SELECT * FROM connections WHERE platform=$1 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
-    [platform]
+    'SELECT * FROM connections WHERE platform=$1 AND is_connected=true AND user_id=$2 ORDER BY updated_at DESC LIMIT 1',
+    [platform, userId]
   );
   return res.rows[0] || null;
 }
 
 async function publishToPlatform(pool, platform, post) {
-  const conn = await getConnection(pool, platform);
+  const conn = await getConnection(pool, platform, post.user_id);
   if (!conn) throw new Error(`No connected ${platform} account`);
   const token = decrypt(conn.access_token);
 

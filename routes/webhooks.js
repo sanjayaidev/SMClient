@@ -40,10 +40,11 @@ function router(pool) {
     return false;
   }
 
-  async function getConnection(platform) {
+  async function getConnection(platform, accountId) {
+    // For webhooks, we need to find the connection by platform and account ID from the event
     const res = await pool.query(
-      'SELECT * FROM connections WHERE platform=$1 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
-      [platform]
+      'SELECT * FROM connections WHERE platform=$1 AND (account_id=$2 OR page_id=$2) AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
+      [platform, accountId]
     );
     return res.rows[0] || null;
   }
@@ -85,7 +86,7 @@ function router(pool) {
         const text = value.text;
         const mediaId = value.media?.id || entry.id;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId });
+        await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId, accountId: entry.id });
       }
       // DMs arrive under "messaging"
       for (const messaging of entry.messaging || []) {
@@ -94,18 +95,18 @@ function router(pool) {
         const text = messaging.message.text;
         const msgId = messaging.message.mid;
         if (await alreadyProcessed(`dm:${msgId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'dm', text, senderId });
+        await handleTrigger({ platform, triggerType: 'dm', text, senderId, accountId: entry.id });
       }
     }
 
-    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId }) {
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId }) {
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text });
       if (!match) return;
       const reply = await pickResponse(match);
       if (!reply) return;
 
-      const conn = await getConnection(platform);
+      const conn = await getConnection(platform, accountId);
       if (!conn) { console.error(`No connected ${platform} account to reply with`); return; }
       const token = decrypt(conn.access_token);
 
