@@ -32,6 +32,11 @@ async function initDB(pool) {
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_url TEXT`);
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS published_ids JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS publish_errors JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS google_drive_file_id VARCHAR(255)`);
+  // Migration for DBs created before the multi-tenant users table existed —
+  // CREATE TABLE IF NOT EXISTS above is a no-op on an already-existing table,
+  // so older deployments never got this column added.
+  await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
 
   // --- automations: add platform + trigger type so the webhook handler
   // knows what an automation applies to ---
@@ -51,6 +56,7 @@ async function initDB(pool) {
   // type is repurposed as trigger type: 'comment' or 'dm'. platforms says
   // which connected platforms this automation should run on.
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS platforms JSONB DEFAULT '["instagram","facebook","threads"]'::jsonb`);
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
 
   // --- connections: real multi-account store, tokens encrypted at rest
   // (see lib/crypto.js) ---
@@ -69,6 +75,9 @@ async function initDB(pool) {
   await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS page_id VARCHAR(255)`); // FB only
   await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP`);
   await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  // Same pre-existing-table migration gap as posts/automations above — must
+  // run BEFORE the unique constraint below, since that constraint references user_id.
+  await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
   await pool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (
