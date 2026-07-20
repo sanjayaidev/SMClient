@@ -22,7 +22,7 @@ function router(pool) {
         `INSERT INTO posts (user_id, title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id, status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $5 IS NULL THEN 'draft' ELSE 'scheduled' END)
          RETURNING *`,
-        [userId, title, caption, hook, JSON.stringify(platforms), scheduled_date, media_url || null, google_drive_file_id || null]
+        [userId, title, caption, hook, JSON.stringify(platforms || []), scheduled_date || null, media_url || null, google_drive_file_id || null]
       );
       res.json(result.rows[0]);
     } catch (err) {
@@ -38,7 +38,7 @@ function router(pool) {
       const result = await pool.query(
         `UPDATE posts SET title=$1, caption=$2, hook=$3, platforms=$4, scheduled_date=$5,
            status=$6, media_url=$7, google_drive_file_id=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$9 AND user_id=$10 RETURNING *`,
-        [title, caption, hook, JSON.stringify(platforms), scheduled_date, status, media_url || null, google_drive_file_id || null, id, userId]
+        [title, caption, hook, JSON.stringify(platforms || []), scheduled_date || null, status || 'draft', media_url || null, google_drive_file_id || null, id, userId]
       );
       res.json(result.rows[0]);
     } catch (err) {
