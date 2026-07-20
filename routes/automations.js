@@ -17,6 +17,9 @@ function router(pool) {
     try {
       const userId = req.user.id || req.user.sub;
       const { name, type, keywords, ai_prompt, variations, platforms } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: 'name is required' });
+      }
       if (type !== 'comment' && type !== 'dm') {
         return res.status(400).json({ error: `type must be "comment" or "dm", got "${type}"` });
       }

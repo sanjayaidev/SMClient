@@ -44,7 +44,17 @@ function router(pool) {
   }
 
   async function getConnection(platform, accountId) {
-    // For webhooks, we need to find the connection by platform and account ID from the event
+    // Threads' webhook payload doesn't give us a reliable per-account id to
+    // match on (see call site below), so accountId is sometimes omitted —
+    // passing a bare `undefined` straight to pg throws "could not determine
+    // data type of parameter $2", so branch instead of relying on a fallback value.
+    if (accountId === undefined || accountId === null) {
+      const res = await pool.query(
+        'SELECT * FROM connections WHERE platform=$1 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
+        [platform]
+      );
+      return res.rows[0] || null;
+    }
     const res = await pool.query(
       'SELECT * FROM connections WHERE platform=$1 AND (account_id=$2 OR page_id=$2) AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
       [platform, accountId]

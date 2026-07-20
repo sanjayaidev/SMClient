@@ -78,7 +78,7 @@ async function upsertConnection(pool, userId, { platform, account_name, account_
        access_token=EXCLUDED.access_token, is_connected=true,
        token_expires_at=EXCLUDED.token_expires_at, updated_at=CURRENT_TIMESTAMP
      RETURNING ${SAFE_FIELDS}`,
-    [userId, platform, account_name, account_id, page_id || null, encryptedToken, token_expires_at || null]
+    [userId, platform, account_name || null, account_id, page_id || null, encryptedToken, token_expires_at || null]
   );
   return result.rows[0];
 }
