@@ -79,20 +79,25 @@ async function publishOnePost(pool, post) {
     }
   }
 
-  const status = anyFailure ? (anySuccess ? 'partial' : 'failed') : 'published';
+  // Auto status updater: changes status based on publishing results
+  let newStatus;
+  if (anySuccess && !anyFailure) {
+    newStatus = 'published';
+  } else if (anySuccess && anyFailure) {
+    newStatus = 'partial';
+  } else if (anyFailure) {
+    newStatus = 'failed';
+  } else {
+    // No platforms were attempted (empty platforms array or all skipped)
+    newStatus = post.status;
+  }
+
   await pool.query(
     `UPDATE posts SET status=$1, published_ids=$2, publish_errors=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
-    [status, JSON.stringify(publishedIds), JSON.stringify(errors), post.id]
+    [newStatus, JSON.stringify(publishedIds), JSON.stringify(errors), post.id]
   );
   
-  // If the post was just published and it was scheduled in the future, 
-  // this means it was a "publish now" action - ensure status is updated correctly
-  if (anySuccess && post.status === 'draft') {
-    await pool.query(
-      `UPDATE posts SET status='published' WHERE id=$1`,
-      [post.id]
-    );
-  }
+  console.log(`Post ${post.id} status updated to '${newStatus}'`);
 }
 
 async function publishDuePosts(pool) {
