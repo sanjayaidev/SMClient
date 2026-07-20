@@ -78,11 +78,24 @@ async function initDB(pool) {
   // Same pre-existing-table migration gap as posts/automations above — must
   // run BEFORE the unique constraint below, since that constraint references user_id.
   await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
+  // Checking the constraint NAME alone isn't enough — an older deployment may
+  // already have a constraint with this exact name but the pre-multi-tenant
+  // definition (platform, account_id) with no user_id. Drop it if the
+  // definition doesn't match what we want, then (re)create it.
   await pool.query(`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'connections_platform_account_unique'
-      ) THEN
+    DO $$
+    DECLARE
+      current_def TEXT;
+    BEGIN
+      SELECT pg_get_constraintdef(oid) INTO current_def
+      FROM pg_constraint WHERE conname = 'connections_platform_account_unique';
+
+      IF current_def IS NOT NULL AND current_def <> 'UNIQUE (user_id, platform, account_id)' THEN
+        ALTER TABLE connections DROP CONSTRAINT connections_platform_account_unique;
+        current_def := NULL;
+      END IF;
+
+      IF current_def IS NULL THEN
         ALTER TABLE connections ADD CONSTRAINT connections_platform_account_unique UNIQUE (user_id, platform, account_id);
       END IF;
     END $$;
