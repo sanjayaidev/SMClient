@@ -63,7 +63,7 @@ async function publishOnePost(pool, post) {
 
 async function publishDuePosts(pool) {
   const due = await pool.query(
-    `SELECT * FROM posts WHERE status='scheduled' AND scheduled_date <= NOW()`
+    `SELECT * FROM posts WHERE status='scheduled' AND scheduled_date <= NOW()::timestamptz`
   );
   for (const post of due.rows) {
     await publishOnePost(pool, post);

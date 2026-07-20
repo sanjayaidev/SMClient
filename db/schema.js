@@ -22,7 +22,7 @@ async function initDB(pool) {
       caption TEXT,
       hook VARCHAR(500),
       platforms JSONB,
-      scheduled_date TIMESTAMP,
+      scheduled_date TIMESTAMPTZ,
       status VARCHAR(50) DEFAULT 'draft',
       ig_media_id VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -33,6 +33,8 @@ async function initDB(pool) {
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS published_ids JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS publish_errors JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS google_drive_file_id VARCHAR(255)`);
+  // Ensure scheduled_date uses TIMESTAMPTZ for consistent timezone handling
+  await pool.query(`ALTER TABLE posts ALTER COLUMN scheduled_date TYPE TIMESTAMPTZ USING scheduled_date::timestamptz`);
   // Migration for DBs created before the multi-tenant users table existed —
   // CREATE TABLE IF NOT EXISTS above is a no-op on an already-existing table,
   // so older deployments never got this column added.

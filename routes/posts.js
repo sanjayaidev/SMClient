@@ -20,7 +20,7 @@ function router(pool) {
       const { title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id } = req.body;
       const result = await pool.query(
         `INSERT INTO posts (user_id, title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $6::timestamptz IS NULL THEN 'draft' ELSE 'scheduled' END)
+         VALUES ($1,$2,$3,$4,$5,$6::timestamptz,$7,$8, CASE WHEN $6 IS NULL THEN 'draft' ELSE 'scheduled' END)
          RETURNING *`,
         [userId, title, caption, hook, JSON.stringify(platforms || []), scheduled_date || null, media_url || null, google_drive_file_id || null]
       );
@@ -36,7 +36,7 @@ function router(pool) {
       const { id } = req.params;
       const { title, caption, hook, platforms, scheduled_date, status, media_url, google_drive_file_id } = req.body;
       const result = await pool.query(
-        `UPDATE posts SET title=$1, caption=$2, hook=$3, platforms=$4, scheduled_date=$5,
+        `UPDATE posts SET title=$1, caption=$2, hook=$3, platforms=$4, scheduled_date=$5::timestamptz,
            status=$6, media_url=$7, google_drive_file_id=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$9 AND user_id=$10 RETURNING *`,
         [title, caption, hook, JSON.stringify(platforms || []), scheduled_date || null, status || 'draft', media_url || null, google_drive_file_id || null, id, userId]
       );
