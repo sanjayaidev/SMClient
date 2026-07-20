@@ -59,6 +59,15 @@ async function publishOnePost(pool, post) {
     `UPDATE posts SET status=$1, published_ids=$2, publish_errors=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
     [status, JSON.stringify(publishedIds), JSON.stringify(errors), post.id]
   );
+  
+  // If the post was just published and it was scheduled in the future, 
+  // this means it was a "publish now" action - ensure status is updated correctly
+  if (anySuccess && post.status === 'draft') {
+    await pool.query(
+      `UPDATE posts SET status='published' WHERE id=$1`,
+      [post.id]
+    );
+  }
 }
 
 async function publishDuePosts(pool) {
