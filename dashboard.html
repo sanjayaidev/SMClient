@@ -1061,6 +1061,9 @@
         <label>Hook</label><input type="text" id="modalHook" placeholder="Attention-grabbing hook...">
         <label>Caption</label><textarea rows="3" id="modalCaption" placeholder="Full caption..."></textarea>
         <label>Hashtags</label><input type="text" id="modalHashtags" placeholder="#content #marketing #growth">
+        <label>Media (image/video)</label>
+        <input type="file" id="modalMediaFile" accept="image/*,video/*">
+        <div class="text-muted" id="modalMediaStatus" style="font-size:12px;margin-top:4px;"></div>
         <div class="text-muted" id="modalError" style="display:none;color:var(--error);font-size:13px;margin-top:6px;"></div>
         <div class="modal-actions">
             <button class="btn btn-outline" id="closeModal">Cancel</button>
@@ -1393,12 +1396,20 @@
     document.getElementById('closeModal').addEventListener('click', () => modalOverlay.classList.remove('show'));
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('show'); });
 
+    let currentMediaUrl = null;
+    let currentDriveFileId = null;
+
     function openModal(day, existingPost) {
         modalOverlay.classList.add('show');
         const modalError = document.getElementById('modalError');
         modalError.style.display = 'none';
+        document.getElementById('modalMediaFile').value = '';
+        const mediaStatus = document.getElementById('modalMediaStatus');
         if (existingPost) {
             editingPostId = existingPost.id;
+            currentMediaUrl = existingPost.media_url || null;
+            currentDriveFileId = existingPost.google_drive_file_id || null;
+            mediaStatus.textContent = currentMediaUrl ? '✓ Media already attached — pick a new file only to replace it.' : '';
             document.getElementById('modalHeading').innerHTML = '<i class="fas fa-edit" style="color:var(--primary);"></i> Edit Post';
             document.getElementById('savePostBtn').textContent = 'Save Changes';
             const d = new Date(existingPost.scheduled_date);
@@ -1410,6 +1421,9 @@
             document.getElementById('modalCaption').value = existingPost.caption || '';
         } else {
             editingPostId = null;
+            currentMediaUrl = null;
+            currentDriveFileId = null;
+            mediaStatus.textContent = '';
             document.getElementById('modalHeading').innerHTML = '<i class="fas fa-plus-circle" style="color:var(--primary);"></i> Schedule Post';
             document.getElementById('savePostBtn').textContent = 'Schedule Post';
             const now = new Date();
@@ -1430,6 +1444,8 @@
 
     document.getElementById('savePostBtn').addEventListener('click', async () => {
         const modalError = document.getElementById('modalError');
+        const mediaStatus = document.getElementById('modalMediaStatus');
+        modalError.style.display = 'none';
         const title = document.getElementById('modalTitle').value.trim();
         const date = document.getElementById('modalDate').value;
         const time = document.getElementById('modalTime').value || '00:00';
@@ -1439,13 +1455,53 @@
             modalError.style.display = 'block';
             return;
         }
+
+        // If a new file was picked, upload it to the user's own Google Drive
+        // first and use the returned proxy URL as this post's media_url.
+        const fileInput = document.getElementById('modalMediaFile');
+        const saveBtn = document.getElementById('savePostBtn');
+        if (fileInput.files && fileInput.files[0]) {
+            const originalLabel = saveBtn.textContent;
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Uploading media…';
+            mediaStatus.textContent = 'Uploading to your Google Drive…';
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                const uploadRes = await apiFetch('/api/media/upload', { method: 'POST', body: formData });
+                if (uploadRes && uploadRes.ok) {
+                    const uploaded = await uploadRes.json();
+                    currentMediaUrl = uploaded.media_url;
+                    currentDriveFileId = uploaded.google_drive_file_id;
+                    mediaStatus.textContent = `✓ Uploaded "${uploaded.filename}" to Drive`;
+                } else {
+                    const data = uploadRes ? await uploadRes.json().catch(() => ({})) : {};
+                    modalError.textContent = data.error || 'Media upload failed';
+                    modalError.style.display = 'block';
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel;
+                    return;
+                }
+            } catch (err) {
+                modalError.textContent = 'Media upload failed: ' + err.message;
+                modalError.style.display = 'block';
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalLabel;
+                return;
+            }
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalLabel;
+        }
+
         const body = {
             title,
             hook: document.getElementById('modalHook').value,
             caption: document.getElementById('modalCaption').value,
             platforms: [platform],
             scheduled_date: new Date(`${date}T${time}`).toISOString(),
-            status: 'scheduled'
+            status: 'scheduled',
+            media_url: currentMediaUrl,
+            google_drive_file_id: currentDriveFileId
         };
         const url = editingPostId ? `/api/posts/${editingPostId}` : '/api/posts';
         const method = editingPostId ? 'PUT' : 'POST';

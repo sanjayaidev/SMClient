@@ -13,6 +13,7 @@ const connectionsRouter = require('./routes/connections');
 const postsRouter = require('./routes/posts');
 const automationsRouter = require('./routes/automations');
 const authRouter = require('./routes/auth');
+const mediaRouter = require('./routes/media');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,10 +55,15 @@ app.use('/api/auth', authRouter(pool));
 // so it can't sit behind requireAuth — see routes/connections.js) ---
 app.use('/api/connections', connectionsRouter.oauthRouter(pool));
 
+// --- Media: public stream proxy (Meta/LinkedIn fetch media here — signed
+// URL, not session/JWT guarded, see routes/media.js) ---
+app.use('/api/media', mediaRouter.streamRouter(pool));
+
 // --- Protected API routes ---
 app.use('/api/connections', requireAuth, connectionsRouter(pool));
 app.use('/api/posts', requireAuth, postsRouter(pool));
 app.use('/api/automations', requireAuth, automationsRouter(pool));
+app.use('/api/media', requireAuth, mediaRouter.router(pool));
 
 // --- Static pages (unchanged) ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
