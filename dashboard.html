@@ -1055,7 +1055,7 @@
         </div>
         <div class="modal-row">
             <div><label>Time</label><input type="time" id="modalTime" value="14:30"></div>
-            <div><label>Timezone</label><select id="modalTimezone"><option>EST</option><option>PST</option><option>GMT</option></select></div>
+            <div><label>Timezone</label><select id="modalTimezone"><option value="+05:30" selected>IST (India)</option><option value="-05:00">EST</option><option value="-08:00">PST</option><option value="+00:00">GMT</option></select></div>
         </div>
         <label>Title</label><input type="text" id="modalTitle" placeholder="Post title...">
         <label>Hook</label><input type="text" id="modalHook" placeholder="Attention-grabbing hook...">
@@ -1323,7 +1323,7 @@
 
         const grid = document.createElement('div');
         grid.className = 'day-detail-grid';
-        const platformNames = { ig: 'Instagram', fb: 'Facebook', th: 'Threads' };
+        const platformNames = { ig: 'Instagram', fb: 'Facebook', th: 'Threads', li: 'LinkedIn' };
         const platformIcons = { ig: 'fab fa-instagram', fb: 'fab fa-facebook-f', th: 'fas fa-threads', li: 'fab fa-linkedin-in' };
         const platformColors = { ig: 'var(--ig)', fb: 'var(--fb)', th: 'var(--threads)', li: 'var(--li)' };
 
@@ -1449,6 +1449,7 @@
         const title = document.getElementById('modalTitle').value.trim();
         const date = document.getElementById('modalDate').value;
         const time = document.getElementById('modalTime').value || '00:00';
+        const timezoneOffset = document.getElementById('modalTimezone').value || '+05:30';
         const platform = document.getElementById('modalPlatform').value;
         if (!title || !date) {
             modalError.textContent = 'Title and date are required.';
@@ -1498,7 +1499,7 @@
             hook: document.getElementById('modalHook').value,
             caption: document.getElementById('modalCaption').value,
             platforms: [platform],
-            scheduled_date: new Date(`${date}T${time}`).toISOString(),
+            scheduled_date: new Date(`${date}T${time}:00${timezoneOffset}`).toISOString(),
             status: 'scheduled',
             media_url: currentMediaUrl,
             google_drive_file_id: currentDriveFileId
