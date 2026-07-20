@@ -1125,8 +1125,8 @@
 
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const PLATFORM_ICONS = { ig: '📸', fb: '📘', th: '🧵' };
-    const PLATFORM_CLASS = { ig: 'picon-ig', fb: 'picon-fb', th: 'picon-th' };
+    const PLATFORM_ICONS = { ig: '📸', fb: '📘', th: '🧵', li: '💼' };
+    const PLATFORM_CLASS = { ig: 'picon-ig', fb: 'picon-fb', th: 'picon-th', li: 'picon-li' };
 
     // ============================================================
     // APP STATE & API HELPERS
@@ -1405,6 +1405,10 @@
         modalError.style.display = 'none';
         document.getElementById('modalMediaFile').value = '';
         const mediaStatus = document.getElementById('modalMediaStatus');
+        
+        // Always default to IST timezone for scheduling
+        document.getElementById('modalTimezone').value = '+05:30';
+        
         if (existingPost) {
             editingPostId = existingPost.id;
             currentMediaUrl = existingPost.media_url || null;
