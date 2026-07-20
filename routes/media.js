@@ -18,6 +18,22 @@ async function getDriveConnection(pool, userId) {
   return res.rows[0] || null;
 }
 
+// Stored value is normally a refresh token (see finishGoogle in
+// routes/connections.js), which must be exchanged for a fresh short-lived
+// access token before every Drive call. If that exchange fails — expired/
+// revoked refresh token — surface a clear "reconnect" error instead of a
+// confusing raw Google 401.
+async function getWorkingAccessToken(conn) {
+  const stored = decrypt(conn.access_token);
+  try {
+    return await drive.getFreshAccessToken(stored);
+  } catch (err) {
+    const e = new Error('Google Drive connection expired or was revoked — please reconnect Google Drive in the Connections tab.');
+    e.needsReconnect = true;
+    throw e;
+  }
+}
+
 // ===========================================================
 // PROTECTED router: upload a file to the user's own connected Drive.
 // Mounted behind requireAuth in server.js.
@@ -34,7 +50,7 @@ function router(pool) {
       if (!conn) {
         return res.status(400).json({ error: 'Connect Google Drive first (Connections tab) before uploading media' });
       }
-      const token = decrypt(conn.access_token);
+      const token = await getWorkingAccessToken(conn);
 
       const uploaded = await drive.uploadFile(token, {
         buffer: req.file.buffer,
@@ -52,6 +68,7 @@ function router(pool) {
         media_url: mediaUrl,
       });
     } catch (err) {
+      if (err.needsReconnect) return res.status(401).json({ error: err.message });
       const message = err.response?.data ? JSON.stringify(err.response.data) : err.message;
       res.status(500).json({ error: message });
     }
@@ -80,7 +97,7 @@ function streamRouter(pool) {
     try {
       const conn = await getDriveConnection(pool, userId);
       if (!conn) return res.status(404).send('Drive account no longer connected');
-      const token = decrypt(conn.access_token);
+      const token = await getWorkingAccessToken(conn);
 
       const meta = await drive.getFileMeta(token, fileId);
       const upstream = await drive.getFileStream(token, fileId);
@@ -89,6 +106,7 @@ function streamRouter(pool) {
       if (meta.size) res.setHeader('Content-Length', meta.size);
       upstream.data.pipe(res);
     } catch (err) {
+      if (err.needsReconnect) return res.status(401).send(err.message);
       res.status(500).send('Failed to stream media');
     }
   });
