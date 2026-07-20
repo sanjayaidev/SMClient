@@ -3,6 +3,7 @@ const { decrypt } = require('./lib/crypto');
 const instagram = require('./platforms/instagram');
 const facebook = require('./platforms/facebook');
 const threads = require('./platforms/threads');
+const linkedin = require('./platforms/linkedin');
 
 // Picks the most-recently-connected account for a platform per user.
 async function getConnection(pool, platform, userId) {
@@ -26,6 +27,10 @@ async function publishToPlatform(pool, platform, post) {
   }
   if (platform === 'threads') {
     return threads.publishPost(token, conn.account_id, { caption: post.caption });
+  }
+  if (platform === 'linkedin') {
+    // account_id was stored as the raw LinkedIn member id (userinfo "sub") — build the author URN here.
+    return linkedin.publishPost(token, `urn:li:person:${conn.account_id}`, { caption: post.caption });
   }
   throw new Error(`Unknown platform: ${platform}`);
 }

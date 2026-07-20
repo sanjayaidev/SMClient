@@ -43,6 +43,13 @@ const OAUTH_CONFIGS = {
     clientSecret: process.env.TH_SECRET,
     webhookVerifyToken: process.env.TH_WEBHOOK_VERIFY_TOKEN,
   },
+  linkedin: {
+    label: 'LinkedIn',
+    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+    scope: 'openid profile w_member_social',
+    clientId: process.env.LINKEDIN_CLIENT_ID,
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+  },
   google_sheets: {
     label: 'Google Sheets',
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -205,6 +212,40 @@ async function finishThreads(pool, userId, code, redirectUri, config) {
 }
 
 // ===========================================================
+// LinkedIn Login (Sign In with LinkedIn using OpenID Connect
+// + Share on LinkedIn for w_member_social)
+// Personal-profile only — no Company Page / Community Management access.
+// ===========================================================
+async function finishLinkedIn(pool, userId, code, redirectUri, config) {
+  const tokenRes = await axios.post(
+    'https://www.linkedin.com/oauth/v2/accessToken',
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+    }),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
+  const accessToken = tokenRes.data.access_token;
+  const expiresAt = tokenRes.data.expires_in ? new Date(Date.now() + tokenRes.data.expires_in * 1000) : null;
+
+  const userinfoRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const sub = userinfoRes.data.sub; // LinkedIn member id — used to build the author URN when posting
+
+  return upsertConnection(pool, userId, {
+    platform: 'linkedin',
+    account_name: userinfoRes.data.name || userinfoRes.data.email,
+    account_id: sub,
+    access_token: accessToken,
+    token_expires_at: expiresAt,
+  });
+}
+
+// ===========================================================
 // Google Sheets / Google Drive
 // Standard Google OAuth2 — no matching test script was provided for this
 // one, so double-check scopes/endpoints against Google's current docs.
@@ -244,6 +285,7 @@ const FINISHERS = {
   facebook: finishFacebook,
   instagram: finishInstagram,
   threads: finishThreads,
+  linkedin: finishLinkedIn,
   google_sheets: (pool, userId, code, redirectUri, config) => finishGoogle(pool, userId, code, redirectUri, config, 'google_sheets'),
   google_drive: (pool, userId, code, redirectUri, config) => finishGoogle(pool, userId, code, redirectUri, config, 'google_drive'),
 };
