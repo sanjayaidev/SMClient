@@ -20,7 +20,7 @@ function router(pool) {
       const { title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id } = req.body;
       const result = await pool.query(
         `INSERT INTO posts (user_id, title, caption, hook, platforms, scheduled_date, media_url, google_drive_file_id, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $5 IS NULL THEN 'draft' ELSE 'scheduled' END)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $6 IS NULL THEN 'draft' ELSE 'scheduled' END)
          RETURNING *`,
         [userId, title, caption, hook, JSON.stringify(platforms || []), scheduled_date || null, media_url || null, google_drive_file_id || null]
       );
