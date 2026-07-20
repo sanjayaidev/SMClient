@@ -43,12 +43,37 @@ async function publishOnePost(pool, post) {
   let anyFailure = false;
 
   for (const platform of platforms) {
+    // Skip if already successfully published to this platform
+    if (publishedIds[platform]) {
+      console.log(`Post ${post.id} already published to ${platform}, skipping`);
+      continue;
+    }
+    
     try {
       const id = await publishToPlatform(pool, platform, post);
       publishedIds[platform] = id;
       anySuccess = true;
     } catch (err) {
-      errors[platform] = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      // Check if this is a duplicate post error from LinkedIn
+      const errorData = err.response?.data;
+      const isDuplicateError = errorData && (
+        errorData.message?.includes('Duplicate post') || 
+        errorData.message?.includes('DUPLICATE_POST') ||
+        (errorData.errorDetails?.inputErrors?.some(e => e.code === 'DUPLICATE_POST'))
+      );
+      
+      if (isDuplicateError) {
+        // For duplicate errors, extract the existing post ID and treat as success
+        const existingPostId = errorData.errorDetails?.inputErrors?.[0]?.description?.match(/urn:li:share:(\d+)/)?.[1];
+        if (existingPostId) {
+          publishedIds[platform] = `urn:li:share:${existingPostId}`;
+          anySuccess = true;
+          console.log(`Post ${post.id} detected as duplicate on ${platform}, using existing ID: ${publishedIds[platform]}`);
+          continue;
+        }
+      }
+      
+      errors[platform] = errorData ? JSON.stringify(errorData) : err.message;
       anyFailure = true;
       console.error(`Publish failed for post ${post.id} on ${platform}:`, errors[platform]);
     }
