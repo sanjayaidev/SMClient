@@ -59,6 +59,10 @@ async function initDB(pool) {
   // which connected platforms this automation should run on.
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS platforms JSONB DEFAULT '["instagram","facebook","threads"]'::jsonb`);
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
+  // New columns for response configuration
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS reply_location VARCHAR(50) DEFAULT 'comment'`);
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS response_type VARCHAR(50) DEFAULT 'text'`);
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS response_data JSONB DEFAULT '{}'::jsonb`);
 
   // --- connections: real multi-account store, tokens encrypted at rest
   // (see lib/crypto.js) ---

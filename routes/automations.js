@@ -16,7 +16,7 @@ function router(pool) {
   r.post('/', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
-      const { name, type, keywords, ai_prompt, variations, platforms } = req.body;
+      const { name, type, keywords, platforms, reply_location, response_type, response_data, is_active } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
@@ -24,16 +24,18 @@ function router(pool) {
         return res.status(400).json({ error: `type must be "comment" or "dm", got "${type}"` });
       }
       const result = await pool.query(
-        `INSERT INTO automations (user_id, name, type, keywords, ai_prompt, variations, platforms)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        `INSERT INTO automations (user_id, name, type, keywords, platforms, reply_location, response_type, response_data, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           userId,
           name,
           type,
           JSON.stringify(keywords || []),
-          ai_prompt || null,
-          JSON.stringify(variations || []),
           JSON.stringify(platforms || ['instagram', 'facebook', 'threads']),
+          reply_location || 'comment',
+          response_type || 'text',
+          JSON.stringify(response_data || {}),
+          is_active !== undefined ? is_active : false
         ]
       );
       res.json(result.rows[0]);
