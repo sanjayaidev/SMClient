@@ -351,6 +351,7 @@
             color: white;
             font-weight: 700;
         }
+        .cal-platform-icons .picon i { font-size: 10px; }
         .picon-ig { background: var(--ig); }
         .picon-fb { background: var(--fb); }
         .picon-th { background: var(--threads); }
@@ -761,7 +762,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-primary bg-opacity-10 text-primary rounded-circle p-3 me-3">
-                                <i class="fab fa-facebook-f fa-lg"></i>
+                                <img src="/assets/logos/facebook.svg" alt="Facebook" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-facebook-f fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Facebook</h5>
@@ -783,7 +784,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-gradient-instagram rounded-circle p-3 me-3 text-white">
-                                <i class="fab fa-instagram fa-lg"></i>
+                                <img src="/assets/logos/instagram.svg" alt="Instagram" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-instagram fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Instagram</h5>
@@ -805,7 +806,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-dark bg-opacity-10 text-dark rounded-circle p-3 me-3">
-                                <i class="fas fa-at fa-lg"></i>
+                                <img src="/assets/logos/threads.svg" alt="Threads" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fas fa-at fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Threads</h5>
@@ -827,7 +828,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box rounded-circle p-3 me-3 text-white" style="background: var(--li);">
-                                <i class="fab fa-linkedin-in fa-lg"></i>
+                                <img src="/assets/logos/linkedin.svg" alt="LinkedIn" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-linkedin-in fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">LinkedIn</h5>
@@ -868,121 +869,172 @@
                         <button class="btn btn-sm btn-ghost" id="closeBuilder"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="step-indicator" id="stepIndicator">
-                        <div class="step active" data-step="1"><span class="num">1</span> Type</div>
+                        <div class="step active" data-step="1"><span class="num">1</span> Platform</div>
                         <div class="line"></div>
-                        <div class="step" data-step="2"><span class="num">2</span> Trigger</div>
+                        <div class="step" data-step="2"><span class="num">2</span> Scope</div>
                         <div class="line"></div>
-                        <div class="step" data-step="3"><span class="num">3</span> Content</div>
+                        <div class="step" data-step="3"><span class="num">3</span> Trigger</div>
                         <div class="line"></div>
-                        <div class="step" data-step="4"><span class="num">4</span> Test</div>
+                        <div class="step" data-step="4"><span class="num">4</span> Response</div>
+                        <div class="line"></div>
+                        <div class="step" data-step="5"><span class="num">5</span> Confirm</div>
                     </div>
 
-                    <!-- Step 1 -->
+                    <!-- Step 1: Choose Platform -->
                     <div class="auto-step active" data-step="1">
                         <label>Automation Name</label>
                         <input type="text" id="autoNameInput" placeholder="e.g. Price Inquiry Response" style="margin-bottom:12px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
-                        <p class="text-muted mb-2">Choose the type of automation you want to build.</p>
-                        <div class="auto-type-grid" id="autoTypeGrid">
-                            <div class="auto-type-card selected" data-type="keyword">
-                                <div class="icon">📌</div>
-                                <h4>Keyword & Reply</h4>
-                                <p>Reply to comments/DMs when specific keywords are detected</p>
+                        <p class="text-muted mb-2">Select which platform(s) this automation will run on.</p>
+                        <div class="auto-type-grid" id="platformSelectGrid">
+                            <div class="auto-type-card selected" data-platform="instagram">
+                                <div class="icon"><i class="fab fa-instagram"></i></div>
+                                <h4>Instagram</h4>
+                                <p>Comments and DMs on Instagram</p>
                             </div>
-                            <div class="auto-type-card" data-type="ai">
-                                <div class="icon">🤖</div>
-                                <h4>AI Auto-Reply</h4>
-                                <p>AI-powered natural language replies</p>
+                            <div class="auto-type-card" data-platform="facebook">
+                                <div class="icon"><i class="fab fa-facebook-f"></i></div>
+                                <h4>Facebook</h4>
+                                <p>Comments and DMs on Facebook Pages</p>
                             </div>
-                            <div class="auto-type-card" data-type="hybrid">
-                                <div class="icon">🎯</div>
-                                <h4>Keyword + AI Fallback</h4>
-                                <p>Try keyword match first, then AI for generic queries</p>
+                            <div class="auto-type-card" data-platform="threads">
+                                <div class="icon"><i class="fas fa-at"></i></div>
+                                <h4>Threads</h4>
+                                <p>Replies on Threads</p>
+                            </div>
+                            <div class="auto-type-card" data-platform="all">
+                                <div class="icon"><i class="fas fa-globe"></i></div>
+                                <h4>All Platforms</h4>
+                                <p>Run on all connected platforms</p>
                             </div>
                         </div>
                         <div class="flex" style="justify-content:flex-end; margin-top:16px;">
+                            <button class="btn btn-primary step-next">Next: Scope <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Choose Post Scope -->
+                    <div class="auto-step" data-step="2">
+                        <p class="text-muted mb-2">Should this automation apply to specific posts or all future posts?</p>
+                        <div class="auto-type-grid" id="scopeSelectGrid">
+                            <div class="auto-type-card selected" data-scope="all">
+                                <div class="icon"><i class="fas fa-infinity"></i></div>
+                                <h4>All Future Posts</h4>
+                                <p>Apply to all new posts automatically</p>
+                            </div>
+                            <div class="auto-type-card" data-scope="specific">
+                                <div class="icon"><i class="fas fa-thumbtack"></i></div>
+                                <h4>Specific Posts</h4>
+                                <p>Choose individual posts to monitor</p>
+                            </div>
+                        </div>
+                        <div id="specificPostSelector" style="display:none; margin-top:16px;">
+                            <label>Select Posts</label>
+                            <select id="postSelect" multiple style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;min-height:120px;"></select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple posts</small>
+                        </div>
+                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
+                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
                             <button class="btn btn-primary step-next">Next: Trigger <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
 
-                    <!-- Step 2 -->
-                    <div class="auto-step" data-step="2">
-                        <p class="text-muted mb-2">Configure when this automation should trigger.</p>
-                        <div class="modal-row">
-                            <div><label>Platform</label><select id="autoPlatform"><option value="all">All</option><option value="ig">Instagram</option><option value="fb">Facebook</option><option value="th">Threads</option></select></div>
-                            <div><label>Trigger Type</label><select id="autoTrigger"><option value="both">Comment & DM</option><option value="comment">Comment Only</option><option value="dm">DM Only</option></select></div>
-                        </div>
-                        <div><label>Additional Filters</label>
-                            <div class="flex" style="gap:12px; flex-wrap:wrap;">
-                                <label><input type="checkbox" checked> Only from followers</label>
-                                <label><input type="checkbox"> Min followers: <input type="number" value="100" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;"></label>
-                            </div>
-                        </div>
-                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
-                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
-                            <button class="btn btn-primary step-next">Next: Content <i class="fas fa-arrow-right"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Step 3 -->
+                    <!-- Step 3: Choose Trigger Keyword -->
                     <div class="auto-step" data-step="3">
-                        <p class="text-muted mb-2">Define the content and responses.</p>
-                        <div id="step3Content">
-                            <!-- Keyword & Reply -->
-                            <div id="kwContent">
-                                <div><label>Keywords (comma separated)</label>
-                                    <input type="text" placeholder="e.g. price, discount, support" id="kwInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
-                                </div>
-                                <div><label>Reply Location</label>
-                                    <select id="replyLocation" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option value="dm">DM</option><option value="comment">Comment</option><option value="both">Both</option></select>
-                                </div>
-                                <label>Reply Variations</label>
-                                <div id="variationsContainer">
-                                    <div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;"></textarea><button class="del-var"><i class="fas fa-times"></i></button></div>
-                                </div>
-                                <button class="btn btn-sm btn-outline" id="addVariation"><i class="fas fa-plus"></i> Add Variation</button>
-                                <div class="flex mt-2"><label style="font-weight:500;">Selection:</label>
-                                    <select style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;"><option>Random</option><option>Sequential</option><option>Weighted</option></select>
-                                </div>
-                            </div>
-                            <!-- AI Content -->
-                            <div id="aiContent" style="display:none;">
-                                <div><label>AI Model</label><select id="aiModelStep3" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></select></div>
-                                <div><label>Reply Location</label><select style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"><option>Comment</option><option>DM</option><option>Both</option></select></div>
-                                <div><label>System Prompt</label><textarea rows="3" id="aiSystemPromptStep3" style="min-height:80px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
-                                <div class="modal-row">
-                                    <div><label>Temperature</label><input type="range" id="aiTempStep3" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
-                                    <div><label>Max Tokens</label><input type="number" id="aiMaxTokensStep3" value="256" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
-                                </div>
-                                <label><input type="checkbox" id="aiIncludeHistoryStep3"> Include conversation history</label>
-                            </div>
-                            <!-- Hybrid Content -->
-                            <div id="hybridContent" style="display:none;">
-                                <p class="text-muted">Keyword rules + AI fallback</p>
-                                <div><label>Keywords</label><input type="text" placeholder="Keywords for rules" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
-                                <div><label>Reply</label><input type="text" placeholder="Reply message" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
-                                <hr style="margin:12px 0;border-color:var(--border);">
-                                <label><input type="checkbox"> Enable AI fallback for generic queries</label>
-                                <div><label>Fallback Model</label><select style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></select></div>
-                                <div><label>Fallback Prompt</label><textarea rows="2" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></textarea></div>
-                            </div>
+                        <p class="text-muted mb-2">What keywords should trigger this automation?</p>
+                        <div><label>Keywords (comma separated)</label>
+                            <input type="text" placeholder="e.g. price, discount, support, how much" id="kwInput" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
+                        </div>
+                        <div style="margin-top:16px;">
+                            <label>Trigger Type</label>
+                            <select id="autoTrigger" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
+                                <option value="comment">Comment Only</option>
+                                <option value="dm">DM Only</option>
+                                <option value="both">Comment & DM</option>
+                            </select>
+                        </div>
+                        <div style="margin-top:16px;">
+                            <label>Reply Location</label>
+                            <select id="replyLocation" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;">
+                                <option value="comment">Reply in Comment</option>
+                                <option value="dm">Reply via DM</option>
+                                <option value="both">Both Comment + DM</option>
+                            </select>
                         </div>
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
                             <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
-                            <button class="btn btn-primary step-next">Next: Test <i class="fas fa-arrow-right"></i></button>
+                            <button class="btn btn-primary step-next">Next: Response <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
 
-                    <!-- Step 4 -->
+                    <!-- Step 4: Set Response (Message, Button, Media) -->
                     <div class="auto-step" data-step="4">
-                        <p class="text-muted mb-2">Test your automation before activating.</p>
-                        <div class="flex" style="gap:8px; flex-wrap:wrap;">
-                            <input type="text" placeholder="Type a test message..." id="testInput" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;">
-                            <button class="btn btn-primary" id="runTestBtn"><i class="fas fa-play"></i> Test</button>
+                        <p class="text-muted mb-2">Configure your automated response.</p>
+                        
+                        <label>Response Type</label>
+                        <select id="responseType" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;">
+                            <option value="text">Text Message</option>
+                            <option value="button">Button with Text</option>
+                            <option value="media">Media + Text</option>
+                            <option value="ai">AI-Generated Reply</option>
+                        </select>
+
+                        <!-- Text Response -->
+                        <div id="textResponseContent">
+                            <label>Reply Message</label>
+                            <textarea id="replyMessage" rows="4" placeholder="Enter your reply message..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
+                            
+                            <label style="margin-top:12px;display:block;">Reply Variations (optional)</label>
+                            <div id="variationsContainer">
+                                <div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="addVariation" style="margin-top:8px;"><i class="fas fa-plus"></i> Add Variation</button>
                         </div>
-                        <div id="testResult" class="test-result" style="display:none;">
-                            <div><span class="matched"></span> <span class="text-muted" style="font-size:12px;"></span></div>
-                            <div class="response" id="testResponse"></div>
-                            <div class="text-muted" style="font-size:12px;margin-top:4px;"></div>
+
+                        <!-- Button Response -->
+                        <div id="buttonResponseContent" style="display:none;">
+                            <label>Button Text</label>
+                            <input type="text" id="buttonText" placeholder="e.g. Learn More" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;">
+                            <label>Button URL</label>
+                            <input type="url" id="buttonUrl" placeholder="https://example.com" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;">
+                            <label>Message Above Button</label>
+                            <textarea id="buttonMessage" rows="3" placeholder="Message text above the button..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
+                        </div>
+
+                        <!-- Media Response -->
+                        <div id="mediaResponseContent" style="display:none;">
+                            <label>Media URL</label>
+                            <input type="url" id="mediaUrl" placeholder="https://example.com/image.jpg" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;">
+                            <label>Caption</label>
+                            <textarea id="mediaCaption" rows="3" placeholder="Caption for the media..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
+                        </div>
+
+                        <!-- AI Response -->
+                        <div id="aiResponseContent" style="display:none;">
+                            <div><label>AI Model</label><select id="aiModelStep3" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;"></select></div>
+                            <div><label>System Prompt</label><textarea rows="3" id="aiSystemPromptStep3" placeholder="You are a helpful assistant..." style="min-height:80px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;margin-bottom:12px;"></textarea></div>
+                            <div class="modal-row">
+                                <div><label>Temperature</label><input type="range" id="aiTempStep3" min="0" max="1" step="0.1" value="0.7" style="width:100%;"></div>
+                                <div><label>Max Tokens</label><input type="number" id="aiMaxTokensStep3" value="256" style="padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;width:100%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
+                            <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-primary step-next">Next: Confirm <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Confirm -->
+                    <div class="auto-step" data-step="5">
+                        <p class="text-muted mb-2">Review your automation settings before activating.</p>
+                        <div class="card" style="background:#f8fafc;border:1px solid var(--border);">
+                            <div style="margin-bottom:12px;"><strong>Name:</strong> <span id="reviewName"></span></div>
+                            <div style="margin-bottom:12px;"><strong>Platform:</strong> <span id="reviewPlatform"></span></div>
+                            <div style="margin-bottom:12px;"><strong>Scope:</strong> <span id="reviewScope"></span></div>
+                            <div style="margin-bottom:12px;"><strong>Trigger:</strong> <span id="reviewTrigger"></span></div>
+                            <div style="margin-bottom:12px;"><strong>Keywords:</strong> <span id="reviewKeywords"></span></div>
+                            <div style="margin-bottom:12px;"><strong>Response Type:</strong> <span id="reviewResponseType"></span></div>
+                            <div><strong>Reply Location:</strong> <span id="reviewReplyLocation"></span></div>
                         </div>
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
                             <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
@@ -1125,7 +1177,12 @@
 
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const PLATFORM_ICONS = { ig: '📸', fb: '📘', th: '🧵', li: '💼' };
+    const PLATFORM_ICONS = { 
+        ig: '<i class="fab fa-instagram"></i>', 
+        fb: '<i class="fab fa-facebook-f"></i>', 
+        th: '<i class="fas fa-at"></i>', 
+        li: '<i class="fab fa-linkedin-in"></i>' 
+    };
     const PLATFORM_CLASS = { ig: 'picon-ig', fb: 'picon-fb', th: 'picon-th', li: 'picon-li' };
 
     // ============================================================
@@ -1543,10 +1600,7 @@
         document.getElementById('kwInput').value = '';
         document.querySelectorAll('.variation-input textarea').forEach((ta, i) => { if (i > 0) ta.closest('.variation-input').remove(); else ta.value = ''; });
         document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
-        document.querySelector('.auto-type-card[data-type="keyword"]').classList.add('selected');
-        document.getElementById('kwContent').style.display = 'block';
-        document.getElementById('aiContent').style.display = 'none';
-        document.getElementById('hybridContent').style.display = 'none';
+        document.querySelector('.auto-type-card[data-platform="instagram"]').classList.add('selected');
         currentStep = 1;
         showStep(1);
     });
@@ -1556,19 +1610,31 @@
         autoList.style.display = 'block';
     });
 
-    // Type selection
-    document.querySelectorAll('.auto-type-card').forEach(card => {
+    // Platform selection
+    document.querySelectorAll('#platformSelectGrid .auto-type-card').forEach(card => {
         card.addEventListener('click', function() {
-            document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('#platformSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
             this.classList.add('selected');
-            const type = this.dataset.type;
-            document.getElementById('kwContent').style.display = type === 'keyword' || type === 'hybrid' ? 'block' : 'none';
-            document.getElementById('aiContent').style.display = type === 'ai' ? 'block' : 'none';
-            document.getElementById('hybridContent').style.display = type === 'hybrid' ? 'block' : 'none';
-            if (type === 'hybrid') {
-                document.getElementById('kwContent').style.display = 'block';
-            }
         });
+    });
+
+    // Scope selection
+    document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            const scope = this.dataset.scope;
+            document.getElementById('specificPostSelector').style.display = scope === 'specific' ? 'block' : 'none';
+        });
+    });
+
+    // Response type selection
+    document.getElementById('responseType').addEventListener('change', function() {
+        const type = this.value;
+        document.getElementById('textResponseContent').style.display = type === 'text' ? 'block' : 'none';
+        document.getElementById('buttonResponseContent').style.display = type === 'button' ? 'block' : 'none';
+        document.getElementById('mediaResponseContent').style.display = type === 'media' ? 'block' : 'none';
+        document.getElementById('aiResponseContent').style.display = type === 'ai' ? 'block' : 'none';
     });
 
     // Step navigation
@@ -1583,13 +1649,17 @@
         document.querySelectorAll('.step-indicator .line').forEach((el, idx) => {
             el.classList.toggle('done', idx < step - 1);
         });
+        
+        // Update review on step 5
+        if (step === 5) updateReview();
+        
         currentStep = step;
     }
 
     document.querySelectorAll('.step-next').forEach(btn => {
         btn.addEventListener('click', () => {
             const next = currentStep + 1;
-            if (next <= 4) showStep(next);
+            if (next <= 5) showStep(next);
         });
     });
     document.querySelectorAll('.step-prev').forEach(btn => {
@@ -1604,7 +1674,7 @@
         const container = document.getElementById('variationsContainer');
         const div = document.createElement('div');
         div.className = 'variation-input';
-        div.innerHTML = `<textarea rows="2">New variation text...</textarea><button class="del-var"><i class="fas fa-times"></i></button>`;
+        div.innerHTML = `<textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
         container.appendChild(div);
         div.querySelector('.del-var').addEventListener('click', () => div.remove());
     });
@@ -1616,37 +1686,85 @@
         });
     });
 
-    // Test
-    document.getElementById('runTestBtn').addEventListener('click', () => {
-        const input = document.getElementById('testInput').value || 'How much does it cost?';
-        const result = document.getElementById('testResult');
-        result.style.display = 'block';
-        document.getElementById('testResponse').textContent = 'Thanks for asking! We have plans starting from $99/month. DM me for a custom quote!';
-        // animate
-        result.style.animation = 'none';
-        setTimeout(() => result.style.animation = 'fadeUp 0.3s ease', 10);
-    });
+    // Update review summary
+    function updateReview() {
+        const name = document.getElementById('autoNameInput').value || '(not set)';
+        const platformCard = document.querySelector('#platformSelectGrid .auto-type-card.selected');
+        const platform = platformCard ? platformCard.dataset.platform : 'all';
+        const scopeCard = document.querySelector('#scopeSelectGrid .auto-type-card.selected');
+        const scope = scopeCard ? scopeCard.dataset.scope : 'all';
+        const trigger = document.getElementById('autoTrigger').value;
+        const keywords = document.getElementById('kwInput').value || '(none)';
+        const responseType = document.getElementById('responseType').value;
+        const replyLocation = document.getElementById('replyLocation').value;
+
+        document.getElementById('reviewName').textContent = name;
+        document.getElementById('reviewPlatform').textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+        document.getElementById('reviewScope').textContent = scope === 'all' ? 'All Future Posts' : 'Specific Posts';
+        document.getElementById('reviewTrigger').textContent = trigger.charAt(0).toUpperCase() + trigger.slice(1);
+        document.getElementById('reviewKeywords').textContent = keywords;
+        document.getElementById('reviewResponseType').textContent = responseType.charAt(0).toUpperCase() + responseType.slice(1);
+        document.getElementById('reviewReplyLocation').textContent = replyLocation.charAt(0).toUpperCase() + replyLocation.slice(1);
+    }
 
     document.getElementById('activateAutoBtn').addEventListener('click', async () => {
         const name = document.getElementById('autoNameInput').value.trim();
-        if (!name) { alert('Please give this automation a name (Step 1).'); showStep(1); return; }
-        const selectedType = document.querySelector('.auto-type-card.selected')?.dataset.type || 'keyword';
-        const triggerRaw = document.getElementById('autoTrigger').value; // 'comment' | 'dm' | 'both'
-        const type = triggerRaw === 'dm' ? 'dm' : 'comment'; // backend only accepts 'comment' or 'dm'
-        const platformSel = document.getElementById('autoPlatform').value;
-        const platforms = platformSel === 'all' ? ['instagram', 'facebook', 'threads', 'linkedin'] : [SHORT_TO_FULL[platformSel] || 'instagram'];
+        if (!name) { alert('Please give this automation a name.'); showStep(1); return; }
+        
+        const platformCard = document.querySelector('#platformSelectGrid .auto-type-card.selected');
+        const platform = platformCard ? platformCard.dataset.platform : 'instagram';
+        const platforms = platform === 'all' ? ['instagram', 'facebook', 'threads'] : [platform];
+        
+        const triggerRaw = document.getElementById('autoTrigger').value;
+        const type = triggerRaw === 'dm' ? 'dm' : 'comment';
+        
+        const keywords = document.getElementById('kwInput').value.split(',').map(k => k.trim()).filter(Boolean);
+        const variations = Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean);
+        
+        const responseType = document.getElementById('responseType').value;
+        const replyLocation = document.getElementById('replyLocation').value;
+        
+        let response_data = {};
+        if (responseType === 'text') {
+            response_data = {
+                type: 'text',
+                message: document.getElementById('replyMessage').value.trim(),
+                variations: variations
+            };
+        } else if (responseType === 'button') {
+            response_data = {
+                type: 'button',
+                button_text: document.getElementById('buttonText').value.trim(),
+                button_url: document.getElementById('buttonUrl').value.trim(),
+                message: document.getElementById('buttonMessage').value.trim()
+            };
+        } else if (responseType === 'media') {
+            response_data = {
+                type: 'media',
+                media_url: document.getElementById('mediaUrl').value.trim(),
+                caption: document.getElementById('mediaCaption').value.trim()
+            };
+        } else if (responseType === 'ai') {
+            response_data = {
+                type: 'ai',
+                model: document.getElementById('aiModelStep3').value,
+                system_prompt: document.getElementById('aiSystemPromptStep3').value.trim(),
+                temperature: parseFloat(document.getElementById('aiTempStep3').value),
+                max_tokens: parseInt(document.getElementById('aiMaxTokensStep3').value)
+            };
+        }
 
-        const keywords = selectedType !== 'ai'
-            ? document.getElementById('kwInput').value.split(',').map(k => k.trim()).filter(Boolean)
-            : [];
-        const variations = selectedType !== 'ai'
-            ? Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean)
-            : [];
-        const ai_prompt = selectedType !== 'keyword'
-            ? (document.querySelector('#aiContent textarea')?.value.trim() || null)
-            : null;
-
-        const body = { name, type, keywords, ai_prompt, variations, platforms };
+        const body = {
+            name,
+            type,
+            keywords,
+            platforms,
+            reply_location: replyLocation,
+            response_type: responseType,
+            response_data,
+            is_active: true
+        };
+        
         const res = await apiFetch('/api/automations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
