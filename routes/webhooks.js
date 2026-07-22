@@ -63,7 +63,12 @@ function router(pool) {
   }
 
   async function getActiveAutomations() {
-    const res = await pool.query('SELECT * FROM automations WHERE is_active=true');
+    const res = await pool.query(
+      `SELECT automations.*, posts.published_ids AS target_published_ids
+       FROM automations
+       LEFT JOIN posts ON posts.id = automations.target_post_id
+       WHERE automations.is_active = true`
+    );
     return res.rows;
   }
 
@@ -110,9 +115,9 @@ function router(pool) {
       }
     }
 
-    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId }) {
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
       const automations = await getActiveAutomations();
-      const match = findMatch(automations, { platform, triggerType, text });
+      const match = findMatch(automations, { platform, triggerType, text, mediaId });
       if (!match) return;
       const reply = await pickResponse(match);
       if (!reply) return;
@@ -176,9 +181,9 @@ function router(pool) {
       }
     }
 
-    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId }) {
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
       const automations = await getActiveAutomations();
-      const match = findMatch(automations, { platform, triggerType, text });
+      const match = findMatch(automations, { platform, triggerType, text, mediaId });
       if (!match) return;
       const reply = await pickResponse(match);
       if (!reply) return;

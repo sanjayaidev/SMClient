@@ -928,10 +928,11 @@
                             </div>
                         </div>
                         <div id="specificPostSelector" style="display:none; margin-top:16px;">
-                            <label>Select Posts</label>
-                            <select id="postSelect" multiple style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;min-height:120px;"></select>
-                            <small class="text-muted">Hold Ctrl/Cmd to select multiple posts</small>
+                            <label>Select a Post</label>
+                            <div id="postSelectList" style="width:100%;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;"></div>
+                            <small class="text-muted">Choose the single post this automation should monitor</small>
                         </div>
+
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
                             <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
                             <button class="btn btn-primary step-next">Next: Trigger <i class="fas fa-arrow-right"></i></button>
@@ -1601,6 +1602,11 @@
         document.querySelectorAll('.variation-input textarea').forEach((ta, i) => { if (i > 0) ta.closest('.variation-input').remove(); else ta.value = ''; });
         document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
         document.querySelector('.auto-type-card[data-platform="instagram"]').classList.add('selected');
+        document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
+        document.querySelector('#scopeSelectGrid .auto-type-card[data-scope="all"]').classList.add('selected');
+        document.getElementById('specificPostSelector').style.display = 'none';
+        selectedAutomationPostId = null;
+        document.getElementById('postSelectList').innerHTML = '';
         currentStep = 1;
         showStep(1);
     });
@@ -1619,12 +1625,58 @@
     });
 
     // Scope selection
+    let selectedAutomationPostId = null;
+    let postsLoadedForAutomation = false;
+
+    function renderPostRadioOptions() {
+        const list = document.getElementById('postSelectList');
+        if (!posts.length) {
+            list.innerHTML = '<div class="text-muted" style="padding:8px;">No posts found yet. Create a post first, then come back here to target it.</div>';
+            return;
+        }
+        const sorted = [...posts].sort((a, b) => new Date(b.scheduled_date || 0) - new Date(a.scheduled_date || 0));
+        list.innerHTML = sorted.map(p => {
+            const platformLabel = (p.platforms || []).map(pl => pl.charAt(0).toUpperCase() + pl.slice(1)).join(', ') || 'No platform';
+            const dateLabel = p.scheduled_date ? new Date(p.scheduled_date).toLocaleDateString() : 'Unscheduled';
+            const checked = String(p.id) === String(selectedAutomationPostId) ? 'checked' : '';
+            return `
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:6px;cursor:pointer;" class="post-radio-option">
+                    <input type="radio" name="automationPost" value="${p.id}" ${checked} style="margin-top:3px;">
+                    <span>
+                        <strong>${(p.title || 'Untitled post').replace(/</g, '&lt;')}</strong><br>
+                        <span class="text-muted" style="font-size:12px;">${platformLabel} &middot; ${dateLabel} &middot; ${(p.status || 'draft')}</span>
+                    </span>
+                </label>`;
+        }).join('');
+        list.querySelectorAll('input[name="automationPost"]').forEach(input => {
+            input.addEventListener('change', () => { selectedAutomationPostId = input.value; });
+        });
+    }
+
+    async function ensurePostsLoadedForAutomation() {
+        const list = document.getElementById('postSelectList');
+        list.innerHTML = '<div class="text-muted" style="padding:8px;"><i class="fas fa-spinner fa-spin"></i> Loading posts...</div>';
+        try {
+            const res = await apiFetch('/api/posts');
+            if (res && res.ok) {
+                posts = await res.json();
+                postsLoadedForAutomation = true;
+            }
+        } catch (err) {
+            console.error('Failed to load posts for automation builder:', err);
+        }
+        renderPostRadioOptions();
+    }
+
     document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(card => {
         card.addEventListener('click', function() {
             document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
             this.classList.add('selected');
             const scope = this.dataset.scope;
             document.getElementById('specificPostSelector').style.display = scope === 'specific' ? 'block' : 'none';
+            if (scope === 'specific') {
+                ensurePostsLoadedForAutomation();
+            }
         });
     });
 
@@ -1700,7 +1752,12 @@
 
         document.getElementById('reviewName').textContent = name;
         document.getElementById('reviewPlatform').textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-        document.getElementById('reviewScope').textContent = scope === 'all' ? 'All Future Posts' : 'Specific Posts';
+        if (scope === 'all') {
+            document.getElementById('reviewScope').textContent = 'All Future Posts';
+        } else {
+            const targetPost = posts.find(p => String(p.id) === String(selectedAutomationPostId));
+            document.getElementById('reviewScope').textContent = targetPost ? `Specific Post — "${targetPost.title}"` : 'Specific Posts (none selected yet)';
+        }
         document.getElementById('reviewTrigger').textContent = trigger.charAt(0).toUpperCase() + trigger.slice(1);
         document.getElementById('reviewKeywords').textContent = keywords;
         document.getElementById('reviewResponseType').textContent = responseType.charAt(0).toUpperCase() + responseType.slice(1);
@@ -1714,7 +1771,16 @@
         const platformCard = document.querySelector('#platformSelectGrid .auto-type-card.selected');
         const platform = platformCard ? platformCard.dataset.platform : 'instagram';
         const platforms = platform === 'all' ? ['instagram', 'facebook', 'threads'] : [platform];
-        
+
+        const scopeCardForSubmit = document.querySelector('#scopeSelectGrid .auto-type-card.selected');
+        const scopeForSubmit = scopeCardForSubmit ? scopeCardForSubmit.dataset.scope : 'all';
+        if (scopeForSubmit === 'specific' && !selectedAutomationPostId) {
+            alert('Please select a post to target this automation on.');
+            showStep(2);
+            return;
+        }
+        const target_post_id = scopeForSubmit === 'specific' ? parseInt(selectedAutomationPostId, 10) : null;
+
         const triggerRaw = document.getElementById('autoTrigger').value;
         const type = triggerRaw === 'dm' ? 'dm' : 'comment';
         
@@ -1762,6 +1828,7 @@
             reply_location: replyLocation,
             response_type: responseType,
             response_data,
+            target_post_id,
             is_active: true
         };
         

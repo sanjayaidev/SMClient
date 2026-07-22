@@ -63,6 +63,9 @@ async function initDB(pool) {
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS reply_location VARCHAR(50) DEFAULT 'comment'`);
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS response_type VARCHAR(50) DEFAULT 'text'`);
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS response_data JSONB DEFAULT '{}'::jsonb`);
+  // Optional scoping: when set, the automation should only fire for
+  // triggers coming from this specific post, instead of all posts.
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS target_post_id INTEGER REFERENCES posts(id) ON DELETE SET NULL`);
 
   // --- connections: real multi-account store, tokens encrypted at rest
   // (see lib/crypto.js) ---
