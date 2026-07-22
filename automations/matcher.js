@@ -13,12 +13,15 @@ function findMatch(automations, { platform, triggerType, text, mediaId }) {
     
     const platforms = a.platforms || [];
     if (platforms.length && !platforms.includes(platform)) return false;
-    // If this automation is scoped to one specific post, only match triggers
-    // whose media id corresponds to that post on this platform. If we can't
-    // tell which post the trigger came from, or the post hasn't been
-    // published to this platform yet, don't match — better to miss than to
-    // reply on the wrong post.
-    if (a.target_post_id) {
+    // If this automation is scoped to specific posts per-platform, only match
+    // triggers whose media id corresponds to the post for that platform.
+    // target_published_ids takes precedence over target_post_id for multi-platform
+    // automations where you want different posts on each platform.
+    if (a.target_published_ids && Object.keys(a.target_published_ids).length > 0) {
+      const targetId = a.target_published_ids[platform];
+      if (!targetId || !mediaId || String(targetId) !== String(mediaId)) return false;
+    } else if (a.target_post_id) {
+      // Fallback to legacy single-post targeting
       const targetId = (a.target_published_ids || {})[platform];
       if (!targetId || !mediaId || String(targetId) !== String(mediaId)) return false;
     }
