@@ -44,18 +44,32 @@ async function logAutomationEvent(pool, data) {
   }
 }
 
+// Helper to get comment reply variations - picks 3 random variations for comments
+function getCommentVariations(variations) {
+  if (!variations || variations.length === 0) return [];
+  // Shuffle and pick up to 3 variations
+  const shuffled = [...variations].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(3, shuffled.length));
+}
+
 // Helper to pick response based on trigger type and automation config
 async function getResponseForTrigger(automation, triggerType, platform, triggerText) {
   const variations = automation.variations || [];
   
-  // For comments: use variations as alternative options
+  // For comments: use variations as alternative options (pick 3 random)
   if (triggerType === 'comment') {
     if (automation.ai_prompt) {
       const aiText = await generateReply(automation.ai_prompt);
       if (aiText) return { text: aiText, type: 'ai' };
     }
     if (variations.length) {
-      // Pick random variation as alternative option
+      // Pick random variation from the 3 pre-selected options
+      const commentVariations = getCommentVariations(variations);
+      if (commentVariations.length > 0) {
+        const selectedVariation = commentVariations[Math.floor(Math.random() * commentVariations.length)];
+        return { text: selectedVariation, type: 'variation' };
+      }
+      // Fallback to any variation if less than 3
       const selectedVariation = variations[Math.floor(Math.random() * variations.length)];
       return { text: selectedVariation, type: 'variation' };
     }

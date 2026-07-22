@@ -1038,7 +1038,10 @@
                         </div>
                         <div class="flex" style="justify-content:space-between; flex-wrap:wrap; margin-top:16px;">
                             <button class="btn btn-outline step-prev"><i class="fas fa-arrow-left"></i> Back</button>
-                            <button class="btn btn-success" id="activateAutoBtn"><i class="fas fa-check"></i> Activate Automation</button>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-outline" id="cancelAutoBtn"><i class="fas fa-times"></i> Cancel</button>
+                                <button class="btn btn-success" id="activateAutoBtn"><i class="fas fa-check"></i> Activate Automation</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1599,12 +1602,12 @@
         document.getElementById('autoNameInput').value = '';
         document.getElementById('kwInput').value = '';
         document.querySelectorAll('.variation-input textarea').forEach((ta, i) => { if (i > 0) ta.closest('.variation-input').remove(); else ta.value = ''; });
-        document.querySelectorAll('.auto-type-card').forEach(c => c.classList.remove('selected'));
-        document.querySelectorAll('#platformSelectGrid .platform-checkbox').forEach(cb => { cb.checked = false; });
-        const instagramCard = document.querySelector('.auto-type-card[data-platform="instagram"]');
-        instagramCard.classList.add('selected');
-        const instagramCheckbox = instagramCard.querySelector('.platform-checkbox');
-        if (instagramCheckbox) instagramCheckbox.checked = true;
+        // Select ALL platforms by default for new automations
+        document.querySelectorAll('#platformSelectGrid .auto-type-card').forEach(c => {
+            c.classList.add('selected');
+            const checkbox = c.querySelector('.platform-checkbox');
+            if (checkbox) checkbox.checked = true;
+        });
         document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
         document.querySelector('#scopeSelectGrid .auto-type-card[data-scope="all"]').classList.add('selected');
         document.getElementById('specificPostSelector').style.display = 'none';
@@ -1615,6 +1618,12 @@
     });
 
     closeBuilder.addEventListener('click', () => {
+        builder.style.display = 'none';
+        autoList.style.display = 'block';
+    });
+    
+    // Cancel button - same behavior as close
+    document.getElementById('cancelAutoBtn').addEventListener('click', () => {
         builder.style.display = 'none';
         autoList.style.display = 'block';
     });
@@ -1980,13 +1989,15 @@
             const kwSummary = (a.keywords && a.keywords.length) ? `Keywords: ${a.keywords.join(', ')}` : '';
             const varSummary = (a.variations && a.variations.length) ? ` · ${a.variations.length} reply variations` : '';
             const aiSummary = a.ai_prompt ? 'AI reply configured' : '';
+            const platforms = (a.platforms || ['instagram', 'facebook', 'threads']).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ');
             card.innerHTML = `
                 <div class="flex-between">
                     <div><span style="font-weight:600;">${a.name}</span> <span class="badge ${a.is_active ? 'active-badge' : ''}" style="margin-left:8px;${a.is_active ? '' : 'background:#fef3c7;color:#92400e;'}">${a.is_active ? 'Active' : 'Paused'}</span></div>
-                    <span class="text-muted" style="font-size:12px;">${(a.type || '').toUpperCase()}</span>
+                    <span class="text-muted" style="font-size:12px;">${(a.type || '').toUpperCase()} · ${platforms}</span>
                 </div>
                 <div class="text-muted" style="font-size:13px;">${[kwSummary, aiSummary].filter(Boolean).join(' · ')}${varSummary}</div>
                 <div class="flex mt-2">
+                    <button class="btn btn-sm btn-outline auto-edit-btn">Edit</button>
                     <button class="btn btn-sm btn-outline auto-dup-btn">Duplicate</button>
                     <button class="btn btn-sm btn-ghost auto-toggle-btn">${a.is_active ? 'Pause' : 'Resume'}</button>
                     <button class="btn btn-sm btn-ghost auto-delete-btn" style="color:var(--error);"><i class="fas fa-trash"></i></button>
@@ -1994,6 +2005,7 @@
             `;
             card.querySelector('.auto-toggle-btn').addEventListener('click', () => toggleAutomation(a.id));
             card.querySelector('.auto-delete-btn').addEventListener('click', () => deleteAutomation(a.id));
+            card.querySelector('.auto-edit-btn').addEventListener('click', () => editAutomation(a));
             card.querySelector('.auto-dup-btn').addEventListener('click', () => {
                 autoList.style.display = 'none';
                 builder.style.display = 'block';

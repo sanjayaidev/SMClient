@@ -1,28 +1,26 @@
-# Examples and test files
+```gitignore
+# Compiled and binary files
 *.pyc
 *.class
 *.o
-*.obj
-*.out
+*.exe
 *.dll
 *.so
 *.a
-*.exe
+*.obj
+*.out
 
 # Dependencies
 node_modules/
 venv/
 .venv/
 __pycache__/
-.mypy_cache/
-.pytest_cache/
-target/
-.gradle/
-
-# Build and distribution
 dist/
 build/
-*.egg-info/
+target/
+.gradle/
+.mypy_cache/
+.pytest_cache/
 
 # Editors and IDEs
 .vscode/
@@ -31,7 +29,7 @@ build/
 *.swo
 *.tmp
 
-# System files
+# System and environment
 .DS_Store
 Thumbs.db
 .env
@@ -67,3 +65,4 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+```
