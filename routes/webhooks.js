@@ -286,9 +286,28 @@ function router(pool) {
       bodyLength: rawBody.length
     });
     
-    if (!verifySignature(req, FB_APP_SECRET, 'x-hub-signature-256')) {
+    // Signature verification with fallback: try FB_APP_SECRET first, then IG_APP_SECRET
+    const secretsToTry = [FB_APP_SECRET, IG_APP_SECRET].filter(Boolean);
+    let verified = false;
+    let usedSecret = null;
+    
+    for (const secret of secretsToTry) {
+      const secretName = secret === FB_APP_SECRET ? 'FB_APP_SECRET' : 'IG_APP_SECRET';
+      console.log(`🔐 Trying ${secretName} for Facebook signature verification`);
+      if (verifySignature(req, secret, 'x-hub-signature-256')) {
+        verified = true;
+        usedSecret = secretName;
+        break;
+      }
+    }
+    
+    if (!verified) {
+      console.log('❌ All Facebook signature verification attempts failed');
+      addToDebugLog({ platform: 'facebook', event: 'signature_check_failed', reason: 'all_secrets_failed' });
       return res.sendStatus(403);
     }
+    
+    console.log(`✅ Facebook signature verified using ${usedSecret}`);
     res.sendStatus(200); // ack immediately; Facebook expects a fast 200
 
     let payload;
@@ -626,10 +645,17 @@ function router(pool) {
         return; 
       }
       const token = decrypt(conn.access_token);
+      console.log(`📤 Sending ${platform} ${triggerType} reply on behalf of account ${conn.account_id || conn.page_id}`);
 
       try {
         if (triggerType === 'comment') {
-          await instagram.replyToComment(token, replyTargetId, reply);
+          if (platform === 'instagram') {
+            await instagram.replyToComment(token, replyTargetId, reply);
+          } else if (platform === 'facebook') {
+            await facebook.replyToComment(token, replyTargetId, reply);
+          } else if (platform === 'threads') {
+            await threads.replyToThread(token, conn.account_id, replyTargetId, reply);
+          }
           await logAutomationEvent(pool, {
             platform,
             triggerType,
@@ -646,7 +672,12 @@ function router(pool) {
             errorMessage: null
           });
         } else if (triggerType === 'dm') {
-          await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          if (platform === 'instagram') {
+            await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          } else if (platform === 'facebook') {
+            await facebook.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          }
+          // Threads has no DM API
           await logAutomationEvent(pool, {
             platform,
             triggerType,
@@ -700,9 +731,39 @@ function router(pool) {
   });
 
   r.post('/webhooks/threads', express.raw({ type: 'application/json' }), async (req, res) => {
-    if (!verifySignature(req, TH_APP_SECRET, 'x-hub-signature-256')) {
+    // Log raw payload for debugging BEFORE signature check
+    const rawBody = req.body.toString('utf8');
+    console.log('📥 Threads webhook received - Raw payload:', rawBody.substring(0, 500));
+    addToDebugLog({ 
+      platform: 'threads', 
+      event: 'webhook_received', 
+      headers: req.headers,
+      rawPayload: JSON.parse(rawBody || '{}'),
+      bodyLength: rawBody.length
+    });
+    
+    // Signature verification with fallback: try TH_SECRET first, then IG_SECRET, then FB_SECRET
+    const secretsToTry = [TH_APP_SECRET, IG_APP_SECRET, FB_APP_SECRET].filter(Boolean);
+    let verified = false;
+    let usedSecret = null;
+    
+    for (const secret of secretsToTry) {
+      const secretName = secret === TH_APP_SECRET ? 'TH_APP_SECRET' : secret === IG_APP_SECRET ? 'IG_APP_SECRET' : 'FB_APP_SECRET';
+      console.log(`🔐 Trying ${secretName} for Threads signature verification`);
+      if (verifySignature(req, secret, 'x-hub-signature-256')) {
+        verified = true;
+        usedSecret = secretName;
+        break;
+      }
+    }
+    
+    if (!verified) {
+      console.log('❌ All Threads signature verification attempts failed');
+      addToDebugLog({ platform: 'threads', event: 'signature_check_failed', reason: 'all_secrets_failed' });
       return res.sendStatus(403);
     }
+    
+    console.log(`✅ Threads signature verified using ${usedSecret}`);
     res.sendStatus(200);
 
     let payload;
@@ -711,7 +772,11 @@ function router(pool) {
     const platform = 'threads';
     for (const entry of payload.entry || []) {
       for (const change of entry.changes || []) {
-        if (change.field !== 'replies') continue; // adjust once real payloads are confirmed
+        if (change.field !== 'replies' && change.field !== 'comments') {
+          console.log(`⚠️  Skipping Threads change with field: ${change.field}`);
+          addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
+          continue;
+        }
         const value = change.value;
         const replyId = value.id;
         const text = value.text;
@@ -719,6 +784,15 @@ function router(pool) {
         if (await alreadyProcessed(`threads_reply:${replyId}`)) continue;
 
         console.log(`🔔 Webhook trigger: ${platform}/comment - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
+        addToDebugLog({ 
+          platform, 
+          event: 'webhook_trigger', 
+          triggerType: 'comment',
+          text,
+          replyId,
+          mediaId,
+          accountId: entry.id
+        });
 
         const automations = await getActiveAutomations();
         const match = findMatch(automations, { platform, triggerType: 'comment', text, mediaId });
@@ -767,7 +841,7 @@ function router(pool) {
           continue;
         }
 
-        const conn = await getConnection('threads');
+        const conn = await getConnection('threads', entry.id);
         if (!conn) { 
           console.error('No connected Threads account to reply with'); 
           await logAutomationEvent(pool, {
@@ -788,6 +862,7 @@ function router(pool) {
           continue; 
         }
         const token = decrypt(conn.access_token);
+        console.log(`📤 Sending Threads reply to comment ${replyId} on behalf of account ${conn.account_id}`);
         try {
           await threads.replyToThread(token, conn.account_id, replyId, reply);
           await logAutomationEvent(pool, {
