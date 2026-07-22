@@ -10,8 +10,22 @@ async function post(url, bodyParams, token) {
   return res.data;
 }
 
-async function publishPost(token, threadsUserId, { caption }) {
-  const create = await post(`${BASE}/${threadsUserId}/threads`, { media_type: 'TEXT', text: caption || '' }, token);
+async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
+  let create;
+  if (mediaUrl) {
+    // Post with image
+    create = await post(`${BASE}/${threadsUserId}/threads`, { 
+      media_type: 'IMAGE', 
+      image_url: mediaUrl,
+      caption: caption || '' 
+    }, token);
+  } else {
+    // Text-only post
+    create = await post(`${BASE}/${threadsUserId}/threads`, { 
+      media_type: 'TEXT', 
+      text: caption || '' 
+    }, token);
+  }
   // Meta's own guidance: wait for container processing before publishing.
   await sleep(30000);
   const publish = await post(`${BASE}/${threadsUserId}/threads_publish`, { creation_id: create.id }, token);

@@ -26,7 +26,7 @@ async function publishToPlatform(pool, platform, post) {
     return facebook.publishPost(token, conn.page_id || conn.account_id, { caption: post.caption, mediaUrl: post.media_url });
   }
   if (platform === 'threads') {
-    return threads.publishPost(token, conn.account_id, { caption: post.caption });
+    return threads.publishPost(token, conn.account_id, { caption: post.caption, mediaUrl: post.media_url });
   }
   if (platform === 'linkedin') {
     // account_id was stored as the raw LinkedIn member id (userinfo "sub") — build the author URN here.
