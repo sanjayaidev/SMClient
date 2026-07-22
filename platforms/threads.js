@@ -13,12 +13,27 @@ async function post(url, bodyParams, token) {
 async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
   let create;
   if (mediaUrl) {
-    // Post with image
-    create = await post(`${BASE}/${threadsUserId}/threads`, { 
-      media_type: 'IMAGE', 
-      image_url: mediaUrl,
+    // Determine media type from URL extension or default to IMAGE
+    const urlLower = mediaUrl.toLowerCase();
+    let mediaType = 'IMAGE';
+    let paramKey = 'image_url';
+    
+    if (urlLower.endsWith('.mp4') || urlLower.endsWith('.mov') || urlLower.endsWith('.avi')) {
+      mediaType = 'VIDEO';
+      paramKey = 'video_url';
+    } else if (urlLower.endsWith('.jpg') || urlLower.endsWith('.jpeg') || urlLower.endsWith('.png') || urlLower.endsWith('.webp')) {
+      mediaType = 'IMAGE';
+      paramKey = 'image_url';
+    }
+    
+    // Post with media (image or video)
+    const bodyParams = { 
+      media_type: mediaType,
       caption: caption || '' 
-    }, token);
+    };
+    bodyParams[paramKey] = mediaUrl;
+    
+    create = await post(`${BASE}/${threadsUserId}/threads`, bodyParams, token);
   } else {
     // Text-only post
     create = await post(`${BASE}/${threadsUserId}/threads`, { 
@@ -27,7 +42,9 @@ async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
     }, token);
   }
   // Meta's own guidance: wait for container processing before publishing.
-  await sleep(30000);
+  // Video containers may take longer to process
+  const processingTime = mediaUrl && mediaUrl.toLowerCase().endsWith('.mp4') ? 60000 : 30000;
+  await sleep(processingTime);
   const publish = await post(`${BASE}/${threadsUserId}/threads_publish`, { creation_id: create.id }, token);
   return publish.id;
 }
