@@ -375,10 +375,14 @@ function router(pool) {
     }
 
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
+      console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
+      
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
       
       if (!match) {
+        console.log(`⚠️  No matching automation found for ${platform}/${triggerType}`);
+        // Log trigger even if no automation matched
         await logAutomationEvent(pool, {
           platform,
           triggerType,
@@ -396,6 +400,8 @@ function router(pool) {
         });
         return;
       }
+      
+      console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       
       const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
       const reply = responseResult?.text;
@@ -532,10 +538,13 @@ function router(pool) {
         const mediaId = value.media?.id || entry.id;
         if (await alreadyProcessed(`threads_reply:${replyId}`)) continue;
 
+        console.log(`🔔 Webhook trigger: ${platform}/comment - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
+
         const automations = await getActiveAutomations();
         const match = findMatch(automations, { platform, triggerType: 'comment', text, mediaId });
         
         if (!match) {
+          console.log(`⚠️  No matching automation found for ${platform}/comment`);
           await logAutomationEvent(pool, {
             platform,
             triggerType: 'comment',
@@ -553,6 +562,8 @@ function router(pool) {
           });
           continue;
         }
+        
+        console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
         
         const responseResult = await getResponseForTrigger(match, 'comment', platform, text);
         const reply = responseResult?.text;
