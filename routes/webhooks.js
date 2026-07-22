@@ -201,10 +201,13 @@ function router(pool) {
     }
 
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
+      console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
+      
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
       
       if (!match) {
+        console.log(`⚠️  No matching automation found for ${platform}/${triggerType}`);
         // Log trigger even if no automation matched
         await logAutomationEvent(pool, {
           platform,
@@ -223,6 +226,8 @@ function router(pool) {
         });
         return;
       }
+      
+      console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       
       const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
       const reply = responseResult?.text;
