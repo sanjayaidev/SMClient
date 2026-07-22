@@ -49,6 +49,15 @@ async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
   return publish.id;
 }
 
+// Recent threads already published by this account, straight from Meta —
+// used so the automation builder can target posts made outside this app.
+async function listRecentThreads(token, threadsUserId, limit = 25) {
+  const res = await axios.get(`${BASE}/${threadsUserId}/threads`, {
+    params: { fields: 'id,text,timestamp,permalink,media_type', limit, access_token: token },
+  });
+  return res.data.data || [];
+}
+
 async function replyToThread(token, threadsUserId, replyToId, text) {
   const create = await post(`${BASE}/${threadsUserId}/threads`, {
     media_type: 'TEXT',
@@ -65,4 +74,4 @@ async function sendDM() {
   throw new Error('Threads has no DM/messaging API — this is a platform limitation, not a bug.');
 }
 
-module.exports = { publishPost, replyToThread, sendDM };
+module.exports = { publishPost, replyToThread, sendDM, listRecentThreads };

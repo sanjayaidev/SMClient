@@ -22,6 +22,16 @@ async function publishPost(token, pageId, { caption, mediaUrl }) {
   return res.id;
 }
 
+// Recent posts already published to this Page, straight from Meta — used so
+// the automation builder can target posts made outside this app.
+async function listRecentPosts(token, pageId, limit = 25) {
+  const res = await get(`${BASE}/${pageId}/posts`, {
+    fields: 'id,message,created_time,permalink_url,full_picture',
+    limit,
+  }, token);
+  return res.data || [];
+}
+
 async function replyToComment(token, objectId, message) {
   const res = await post(`${BASE}/${objectId}/comments`, { message }, token);
   return res.id;
@@ -36,4 +46,4 @@ async function sendDM(token, pageId, recipientId, text) {
   return res.message_id;
 }
 
-module.exports = { publishPost, replyToComment, sendDM };
+module.exports = { publishPost, replyToComment, sendDM, listRecentPosts };

@@ -46,6 +46,18 @@ async function sendDM(token, igId, recipientId, text) {
   return res.message_id;
 }
 
+// Recent media already published to this IG business account, straight from
+// Meta — used so the automation builder can target posts that were published
+// outside this app (e.g. from the native Instagram app) and not just posts
+// this app scheduled itself.
+async function listRecentMedia(token, igId, limit = 25) {
+  const res = await get(`${BASE}/${igId}/media`, {
+    fields: 'id,caption,timestamp,permalink,media_type,media_url,thumbnail_url',
+    limit,
+  }, token);
+  return res.data || [];
+}
+
 // Kept for parity with the test scripts / manual debugging — the webhook
 // flow doesn't need this since it gets the sender id directly from the event.
 async function getRecipientFromLatestConversation(token, igId, myUsername) {
@@ -59,4 +71,4 @@ async function getRecipientFromLatestConversation(token, igId, myUsername) {
   return participants.find((p) => p.username !== myUsername) || null;
 }
 
-module.exports = { publishPost, replyToComment, sendDM, getRecipientFromLatestConversation };
+module.exports = { publishPost, replyToComment, sendDM, getRecipientFromLatestConversation, listRecentMedia };
