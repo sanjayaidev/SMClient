@@ -242,7 +242,25 @@ function router(pool) {
        LEFT JOIN posts ON posts.id = automations.target_post_id
        WHERE automations.is_active = true`
     );
-    return res.rows;
+    return res.rows.map(row => ({
+      ...row,
+      // Ensure JSON fields are parsed properly (PostgreSQL may return them as strings)
+      response_data: typeof row.response_data === 'string' 
+        ? JSON.parse(row.response_data) 
+        : row.response_data || {},
+      variations: typeof row.variations === 'string'
+        ? JSON.parse(row.variations)
+        : row.variations || [],
+      keywords: typeof row.keywords === 'string'
+        ? JSON.parse(row.keywords)
+        : row.keywords || [],
+      platforms: typeof row.platforms === 'string'
+        ? JSON.parse(row.platforms)
+        : row.platforms || ['instagram', 'facebook', 'threads'],
+      target_published_ids: typeof row.target_published_ids === 'string'
+        ? JSON.parse(row.target_published_ids)
+        : row.target_published_ids || {}
+    }));
   }
 
   // ===== Facebook Webhook =====
@@ -831,8 +849,13 @@ function router(pool) {
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     try {
-      const result = await pool.query('SELECT id, name, type, keywords, ai_prompt, variations, is_active, created_at FROM automations WHERE is_active=true');
-      res.json(result.rows);
+      const result = await pool.query('SELECT id, name, type, keywords, ai_prompt, variations, response_data, is_active, created_at FROM automations WHERE is_active=true');
+      res.json(result.rows.map(row => ({
+        ...row,
+        // Ensure response_data and variations are parsed as JSON if they're strings
+        response_data: typeof row.response_data === 'string' ? JSON.parse(row.response_data) : row.response_data || {},
+        variations: typeof row.variations === 'string' ? JSON.parse(row.variations) : row.variations || []
+      })));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
