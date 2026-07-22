@@ -22,14 +22,14 @@ target/
 .mypy_cache/
 .pytest_cache/
 
-# Editors and IDEs
+# Editor/IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
-# System and environment
+# System files
 .DS_Store
 Thumbs.db
 .env

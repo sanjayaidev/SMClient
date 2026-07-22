@@ -1628,6 +1628,99 @@
         autoList.style.display = 'block';
     });
 
+    // ============================================================
+    // EDIT AUTOMATION FUNCTION
+    // ============================================================
+    async function editAutomation(a) {
+        editingAutomationId = a.id;
+        autoList.style.display = 'none';
+        builder.style.display = 'block';
+        document.getElementById('builderTitle').textContent = 'Edit Automation: ' + a.name;
+        
+        // Step 1: Populate name and platforms
+        document.getElementById('autoNameInput').value = a.name || '';
+        
+        // Reset platform selection
+        document.querySelectorAll('#platformSelectGrid .auto-type-card').forEach(c => {
+            c.classList.remove('selected');
+            const checkbox = c.querySelector('.platform-checkbox');
+            if (checkbox) checkbox.checked = false;
+        });
+        
+        // Select platforms from automation
+        const autoPlatforms = a.platforms || ['instagram', 'facebook', 'threads'];
+        autoPlatforms.forEach(plat => {
+            const card = document.querySelector(`#platformSelectGrid .auto-type-card[data-platform="${plat}"]`);
+            if (card) {
+                card.classList.add('selected');
+                const checkbox = card.querySelector('.platform-checkbox');
+                if (checkbox) checkbox.checked = true;
+            }
+        });
+        
+        // Step 2: Set scope
+        document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
+        const scopeCard = document.querySelector(`#scopeSelectGrid .auto-type-card[data-scope="${a.target_post_id ? 'specific' : 'all'}"]`);
+        if (scopeCard) scopeCard.classList.add('selected');
+        
+        document.getElementById('specificPostSelector').style.display = a.target_post_id ? 'block' : 'none';
+        
+        // Load posts if specific post is selected
+        if (a.target_post_id) {
+            await ensurePostsLoadedForAutomation();
+            selectedAutomationPostId = String(a.target_post_id);
+        } else {
+            selectedAutomationPostId = null;
+        }
+        
+        // Step 3: Set trigger and keywords
+        document.getElementById('autoTrigger').value = a.type || 'comment';
+        document.getElementById('kwInput').value = (a.keywords || []).join(', ');
+        
+        // Step 4: Set response type and data
+        document.getElementById('responseType').value = a.response_type || 'text';
+        document.getElementById('replyLocation').value = a.reply_location || 'comment';
+        
+        // Trigger change event to show correct response content
+        document.getElementById('responseType').dispatchEvent(new Event('change'));
+        
+        // Populate response data based on type
+        const responseData = a.response_data || {};
+        if (a.response_type === 'text') {
+            document.getElementById('replyMessage').value = responseData.message || '';
+            // Clear variations container and add saved variations
+            const varContainer = document.getElementById('variationsContainer');
+            varContainer.innerHTML = '';
+            const variations = responseData.variations || [];
+            if (variations.length === 0) {
+                varContainer.innerHTML = `<div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>`;
+            } else {
+                variations.forEach((v, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'variation-input';
+                    div.innerHTML = `<textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;">${v.replace(/"/g, '&quot;')}</textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
+                    varContainer.appendChild(div);
+                });
+            }
+        } else if (a.response_type === 'button') {
+            document.getElementById('buttonText').value = responseData.button_text || '';
+            document.getElementById('buttonUrl').value = responseData.button_url || '';
+            document.getElementById('buttonMessage').value = responseData.message || '';
+        } else if (a.response_type === 'media') {
+            document.getElementById('mediaUrl').value = responseData.media_url || '';
+            document.getElementById('mediaCaption').value = responseData.caption || '';
+        } else if (a.response_type === 'ai') {
+            document.getElementById('aiModelStep3').value = responseData.model || 'gpt-4o-mini';
+            document.getElementById('aiSystemPromptStep3').value = responseData.system_prompt || '';
+            document.getElementById('aiTempStep3').value = responseData.temperature || 0.7;
+            document.getElementById('aiMaxTokensStep3').value = responseData.max_tokens || 256;
+        }
+        
+        // Go to step 1
+        currentStep = 1;
+        showStep(1);
+    }
+
     // Platform selection — multi-select (checkbox behavior): clicking toggles
     // a card on/off rather than exclusively selecting one. At least one
     // platform must stay selected at all times.
@@ -1686,42 +1779,83 @@
             return;
         }
 
-        const localRows = [...filteredLocal]
-            .sort((a, b) => new Date(b.scheduled_date || 0) - new Date(a.scheduled_date || 0))
-            .map(p => {
-                const platformLabel = (p.platforms || []).map(pl => pl.charAt(0).toUpperCase() + pl.slice(1)).join(', ') || 'No platform';
-                const dateLabel = p.scheduled_date ? new Date(p.scheduled_date).toLocaleDateString() : 'Unscheduled';
-                const checked = String(p.id) === String(selectedAutomationPostId) ? 'checked' : '';
-                return `
-                    <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:6px;cursor:pointer;" class="post-radio-option">
-                        <input type="radio" name="automationPost" value="${p.id}" ${checked} style="margin-top:3px;">
-                        <span>
-                            <strong>${(p.title || 'Untitled post').replace(/</g, '&lt;')}</strong><br>
-                            <span class="text-muted" style="font-size:12px;">${platformLabel} &middot; ${dateLabel} &middot; ${(p.status || 'draft')}</span>
-                        </span>
-                    </label>`;
-            }).join('');
+        // Group local posts by platform for three-column layout
+        const postsByPlatform = { facebook: [], instagram: [], threads: [] };
+        filteredLocal.forEach(p => {
+            (p.platforms || []).forEach(plat => {
+                if (postsByPlatform[plat]) postsByPlatform[plat].push(p);
+            });
+        });
+        
+        // Group remote posts by platform
+        const remoteByPlatform = { facebook: [], instagram: [], threads: [] };
+        untrackedRemote.forEach(rp => {
+            if (remoteByPlatform[rp.platform]) remoteByPlatform[rp.platform].push(rp);
+        });
 
-        const remoteRows = untrackedRemote
-            .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
-            .map(rp => {
-                const value = `remote:${rp.platform}:${rp.remote_id}`;
-                const platformLabel = rp.platform.charAt(0).toUpperCase() + rp.platform.slice(1);
-                const dateLabel = rp.timestamp ? new Date(rp.timestamp).toLocaleDateString() : 'Unknown date';
-                const titleText = (rp.caption || `${platformLabel} post`).slice(0, 80).replace(/</g, '&lt;');
-                const checked = value === String(selectedAutomationPostId) ? 'checked' : '';
-                return `
-                    <label style="display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:6px;cursor:pointer;" class="post-radio-option">
-                        <input type="radio" name="automationPost" value="${value}" ${checked} style="margin-top:3px;">
-                        <span>
-                            <strong>${titleText}</strong><br>
-                            <span class="text-muted" style="font-size:12px;">${platformLabel} &middot; ${dateLabel} &middot; posted directly on ${platformLabel} (not yet tracked here)</span>
-                        </span>
-                    </label>`;
-            }).join('');
+        // Check if any platform has posts
+        const hasAnyPosts = selectedPlatforms.some(plat => 
+            (postsByPlatform[plat] && postsByPlatform[plat].length > 0) || 
+            (remoteByPlatform[plat] && remoteByPlatform[plat].length > 0)
+        );
 
-        const remoteHeader = remoteRows ? '<div class="text-muted" style="padding:8px 8px 0;font-size:12px;text-transform:uppercase;letter-spacing:.03em;">Recently posted (found via Meta)</div>' : '';
-        list.innerHTML = localRows + remoteHeader + remoteRows;
+        if (!hasAnyPosts) {
+            const platformNames = selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('/');
+            list.innerHTML = `<div class="text-muted" style="padding:8px;">No posts found on ${platformNames} yet. Create or publish a post there first, then come back here to target it.</div>`;
+            return;
+        }
+
+        let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-height:400px;overflow-y:auto;padding:8px;">';
+        
+        selectedPlatforms.forEach(platform => {
+            const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+            const platformIcon = platform === 'facebook' ? 'fa-facebook-f' : platform === 'instagram' ? 'fa-instagram' : 'fa-at';
+            const localPosts = (postsByPlatform[platform] || []).sort((a, b) => new Date(b.scheduled_date || 0) - new Date(a.scheduled_date || 0));
+            const remotePosts = (remoteByPlatform[platform] || []).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            
+            html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafbfc;">
+                <div style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i class="fab ${platformIcon}" style="color:var(--${platform === 'facebook' ? 'fb' : platform === 'instagram' ? 'ig' : 'threads'});"></i>
+                    ${platformLabel} Posts
+                </div>
+                <div style="max-height:200px;overflow-y:auto;">`;
+            
+            if (localPosts.length === 0 && remotePosts.length === 0) {
+                html += `<div class="text-muted" style="font-size:12px;padding:8px;">No ${platformLabel} posts</div>`;
+            } else {
+                localPosts.forEach(p => {
+                    const dateLabel = p.scheduled_date ? new Date(p.scheduled_date).toLocaleDateString() : 'Unscheduled';
+                    const checked = String(p.id) === String(selectedAutomationPostId) ? 'checked' : '';
+                    html += `
+                        <label style="display:flex;align-items:flex-start;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:12px;">
+                            <input type="radio" name="automationPost" value="${p.id}" ${checked} style="margin-top:2px;">
+                            <span>
+                                <strong>${(p.title || 'Untitled').replace(/</g, '&lt;')}</strong><br>
+                                <span class="text-muted" style="font-size:11px;">${dateLabel}</span>
+                            </span>
+                        </label>`;
+                });
+                remotePosts.forEach(rp => {
+                    const value = `remote:${rp.platform}:${rp.remote_id}`;
+                    const dateLabel = rp.timestamp ? new Date(rp.timestamp).toLocaleDateString() : 'Unknown date';
+                    const titleText = (rp.caption || `${platformLabel} post`).slice(0, 50).replace(/</g, '&lt;');
+                    const checked = value === String(selectedAutomationPostId) ? 'checked' : '';
+                    html += `
+                        <label style="display:flex;align-items:flex-start;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:12px;">
+                            <input type="radio" name="automationPost" value="${value}" ${checked} style="margin-top:2px;">
+                            <span>
+                                <strong>${titleText}</strong><br>
+                                <span class="text-muted" style="font-size:11px;">${dateLabel}</span>
+                            </span>
+                        </label>`;
+                });
+            }
+            
+            html += '</div></div>';
+        });
+        
+        html += '</div>';
+        list.innerHTML = html;
         list.querySelectorAll('input[name="automationPost"]').forEach(input => {
             input.addEventListener('change', () => { selectedAutomationPostId = input.value; });
         });
@@ -1950,8 +2084,12 @@
             is_active: true
         };
         
-        const res = await apiFetch('/api/automations', {
-            method: 'POST',
+        // If editing an existing automation, use PUT; otherwise use POST
+        const url = editingAutomationId ? `/api/automations/${editingAutomationId}` : '/api/automations';
+        const method = editingAutomationId ? 'PUT' : 'POST';
+        
+        const res = await apiFetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });

@@ -68,6 +68,59 @@ function router(pool) {
     }
   });
 
+  r.put('/:id', async (req, res) => {
+    try {
+      const userId = req.user.id || req.user.sub;
+      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: 'name is required' });
+      }
+      if (type !== 'comment' && type !== 'dm') {
+        return res.status(400).json({ error: `type must be "comment" or "dm", got "${type}"` });
+      }
+      
+      // Verify ownership of the automation
+      const existing = await pool.query('SELECT id FROM automations WHERE id=$1 AND user_id=$2', [req.params.id, userId]);
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Automation not found' });
+      }
+      
+      let targetPostId = null;
+      if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
+        const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [target_post_id, userId]);
+        if (!postCheck.rows.length) {
+          return res.status(400).json({ error: 'target_post_id does not refer to one of your posts' });
+        }
+        targetPostId = postCheck.rows[0].id;
+      }
+      
+      const result = await pool.query(
+        `UPDATE automations 
+         SET name=$1, type=$2, keywords=$3, platforms=$4, ai_prompt=$5, variations=$6, 
+             reply_location=$7, response_type=$8, response_data=$9, is_active=$10, target_post_id=$11
+         WHERE id=$12 AND user_id=$13 RETURNING *`,
+        [
+          name,
+          type,
+          JSON.stringify(keywords || []),
+          JSON.stringify(platforms || ['instagram', 'facebook', 'threads']),
+          ai_prompt || null,
+          JSON.stringify(variations || []),
+          reply_location || 'comment',
+          response_type || 'text',
+          JSON.stringify(response_data || {}),
+          is_active !== undefined ? is_active : false,
+          targetPostId,
+          req.params.id,
+          userId
+        ]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   r.delete('/:id', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
