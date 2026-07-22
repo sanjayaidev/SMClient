@@ -12,6 +12,7 @@ const webhooksRouter = require('./routes/webhooks');
 const connectionsRouter = require('./routes/connections');
 const postsRouter = require('./routes/posts');
 const automationsRouter = require('./routes/automations');
+const commentsRouter = require('./routes/comments');
 const authRouter = require('./routes/auth');
 const mediaRouter = require('./routes/media');
 
@@ -63,6 +64,7 @@ app.use('/api/media', mediaRouter.streamRouter(pool));
 app.use('/api/connections', requireAuth, connectionsRouter(pool));
 app.use('/api/posts', requireAuth, postsRouter(pool));
 app.use('/api/automations', requireAuth, automationsRouter(pool));
+app.use('/api/comments', requireAuth, commentsRouter(pool));
 app.use('/api/media', requireAuth, mediaRouter.router(pool));
 
 // --- Static pages (unchanged) ---
