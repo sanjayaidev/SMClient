@@ -8,28 +8,40 @@ function router(pool) {
     try {
       const userId = req.user.id || req.user.sub;
       const limit = parseInt(req.query.limit) || 50;
+      const platform = req.query.platform; // Optional filter by platform
       
       // Get connections for this user to filter by their accounts
-      const connectionsRes = await pool.query(
-        'SELECT account_id, page_id, platform FROM connections WHERE user_id = $1 AND is_connected = true',
-        [userId]
-      );
+      let connectionsQuery = 'SELECT account_id, page_id, platform FROM connections WHERE user_id = $1 AND is_connected = true';
+      const queryParams = [userId];
+      
+      if (platform) {
+        connectionsQuery += ' AND platform = $2';
+        queryParams.push(platform);
+      }
+      
+      const connectionsRes = await pool.query(connectionsQuery, queryParams);
       const accountIds = connectionsRes.rows.map(c => c.account_id || c.page_id);
       
       if (accountIds.length === 0) {
         return res.json([]);
       }
       
-      const result = await pool.query(
-        `SELECT id, platform, trigger_type, trigger_text, media_id, sender_id, account_id, 
-                automation_id, automation_name, response_type, response_content, reply_location, 
-                success, error_message, created_at
-         FROM automation_logs
-         WHERE account_id = ANY($1) AND trigger_type = 'comment'
-         ORDER BY created_at DESC
-         LIMIT $2`,
-        [accountIds, limit]
-      );
+      let query = `
+        SELECT id, platform, trigger_type, trigger_text, media_id, sender_id, account_id, 
+               automation_id, automation_name, response_type, response_content, reply_location, 
+               success, error_message, created_at
+        FROM automation_logs
+        WHERE account_id = ANY($1) AND trigger_type = 'comment'
+      `;
+      const queryParamCount = 2;
+      
+      if (platform) {
+        query += ' AND platform = $2';
+      }
+      
+      query += ' ORDER BY created_at DESC LIMIT $' + (platform ? 3 : 2);
+      
+      const result = await pool.query(query, platform ? [accountIds, platform, limit] : [accountIds, limit]);
       res.json(result.rows);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -80,6 +92,18 @@ function router(pool) {
       } else if (platform === 'instagram') {
         const instagram = require('../platforms/instagram');
         replyId = await instagram.replyToComment(token, commentId, message);
+      } else if (platform === 'threads') {
+        const threads = require('../platforms/threads');
+        // For Threads, we need the threads user ID from the connection
+        const connDetailsRes = await pool.query(
+          'SELECT account_id FROM connections WHERE user_id = $1 AND platform = \'threads\' AND is_connected = true LIMIT 1',
+          [userId]
+        );
+        if (connDetailsRes.rows.length === 0) {
+          return res.status(400).json({ error: 'No connected Threads account found' });
+        }
+        const threadsUserId = connDetailsRes.rows[0].account_id;
+        replyId = await threads.replyToThread(token, threadsUserId, commentId, message);
       } else {
         return res.status(400).json({ error: `Unsupported platform: ${platform}` });
       }
