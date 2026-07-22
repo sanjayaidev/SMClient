@@ -463,7 +463,11 @@ function router(pool) {
       bodyLength: rawBody.length
     });
     
-    if (!verifySignature(req, IG_APP_SECRET, 'x-hub-signature-256')) {
+    // TEMPORARY FIX: Using FB credentials for testing - replace IG_APP_SECRET with FB_APP_SECRET
+    const secretToUse = FB_APP_SECRET; // Temporarily use FB secret for Instagram webhook
+    console.log(`🔧 TEMP: Using ${secretToUse === FB_APP_SECRET ? 'FB_APP_SECRET' : 'IG_APP_SECRET'} for Instagram signature verification`);
+    
+    if (!verifySignature(req, secretToUse, 'x-hub-signature-256')) {
       return res.sendStatus(403);
     }
     res.sendStatus(200);
