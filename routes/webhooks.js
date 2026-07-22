@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { decrypt } = require('../lib/crypto');
 const { findMatch, pickResponse } = require('../automations/matcher');
+const { generateReply } = require('../lib/ai');
 const instagram = require('../platforms/instagram');
 const facebook = require('../platforms/facebook');
 const threads = require('../platforms/threads');
@@ -13,6 +14,90 @@ const IG_VERIFY_TOKEN = process.env.IG_WEBHOOK_VERIFY_TOKEN;
 const IG_APP_SECRET = process.env.IG_SECRET;
 const TH_VERIFY_TOKEN = process.env.TH_WEBHOOK_VERIFY_TOKEN;
 const TH_APP_SECRET = process.env.TH_SECRET;
+
+// Helper to log automation events to database
+async function logAutomationEvent(pool, data) {
+  try {
+    await pool.query(
+      `INSERT INTO automation_logs 
+       (platform, trigger_type, trigger_text, media_id, sender_id, account_id, 
+        automation_id, automation_name, response_type, response_content, reply_location, success, error_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        data.platform,
+        data.triggerType,
+        data.triggerText || null,
+        data.mediaId || null,
+        data.senderId || null,
+        data.accountId || null,
+        data.automationId || null,
+        data.automationName || null,
+        data.responseType || null,
+        data.responseContent || null,
+        data.replyLocation || null,
+        data.success,
+        data.errorMessage || null
+      ]
+    );
+  } catch (err) {
+    console.error('Failed to log automation event:', err.message);
+  }
+}
+
+// Helper to pick response based on trigger type and automation config
+async function getResponseForTrigger(automation, triggerType, platform, triggerText) {
+  const variations = automation.variations || [];
+  
+  // For comments: use variations as alternative options
+  if (triggerType === 'comment') {
+    if (automation.ai_prompt) {
+      const aiText = await generateReply(automation.ai_prompt);
+      if (aiText) return { text: aiText, type: 'ai' };
+    }
+    if (variations.length) {
+      // Pick random variation as alternative option
+      const selectedVariation = variations[Math.floor(Math.random() * variations.length)];
+      return { text: selectedVariation, type: 'variation' };
+    }
+  }
+  
+  // For DMs: handle based on support type per platform
+  if (triggerType === 'dm') {
+    // Check if automation has platform-specific DM response configuration
+    const responseData = automation.response_data || {};
+    const platformConfig = responseData[platform] || responseData.general || {};
+    
+    if (platformConfig.support_type === 'tiered') {
+      // Tiered support: escalate based on keywords or conversation history
+      const tier = platformConfig.tiers?.find(t => 
+        t.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
+      );
+      if (tier?.response) {
+        return { text: tier.response, type: 'tiered_support' };
+      }
+    } else if (platformConfig.support_type === 'categorized') {
+      // Categorized support: route based on issue type
+      const category = platformConfig.categories?.find(c => 
+        c.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
+      );
+      if (category?.response) {
+        return { text: category.response, type: 'categorized_support' };
+      }
+    }
+    
+    // Fallback to AI or variations
+    if (automation.ai_prompt) {
+      const aiText = await generateReply(automation.ai_prompt);
+      if (aiText) return { text: aiText, type: 'ai' };
+    }
+    if (variations.length) {
+      const selectedVariation = variations[Math.floor(Math.random() * variations.length)];
+      return { text: selectedVariation, type: 'variation' };
+    }
+  }
+  
+  return null;
+}
 
 function router(pool) {
   const r = express.Router();
@@ -118,22 +203,125 @@ function router(pool) {
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
-      if (!match) return;
-      const reply = await pickResponse(match);
-      if (!reply) return;
+      
+      if (!match) {
+        // Log trigger even if no automation matched
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: null,
+          automationName: null,
+          responseType: null,
+          responseContent: null,
+          replyLocation: null,
+          success: false,
+          errorMessage: 'No matching automation found'
+        });
+        return;
+      }
+      
+      const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
+      const reply = responseResult?.text;
+      
+      if (!reply) {
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: null,
+          responseContent: null,
+          replyLocation: null,
+          success: false,
+          errorMessage: 'No response generated'
+        });
+        return;
+      }
 
       const conn = await getConnection(platform, accountId);
-      if (!conn) { console.error(`No connected ${platform} account to reply with`); return; }
+      if (!conn) { 
+        console.error(`No connected ${platform} account to reply with`); 
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: responseResult.type,
+          responseContent: reply,
+          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          success: false,
+          errorMessage: `No connected ${platform} account`
+        });
+        return; 
+      }
       const token = decrypt(conn.access_token);
 
       try {
         if (triggerType === 'comment') {
           await facebook.replyToComment(token, replyTargetId, reply);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'comment',
+            success: true,
+            errorMessage: null
+          });
         } else if (triggerType === 'dm') {
           await facebook.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId: null,
+            senderId,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'dm',
+            success: true,
+            errorMessage: null
+          });
         }
       } catch (err) {
-        console.error(`Auto-reply failed (${platform}/${triggerType}):`, err.response?.data || err.message);
+        const errorMsg = err.response?.data || err.message;
+        console.error(`Auto-reply failed (${platform}/${triggerType}):`, errorMsg);
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: responseResult?.type,
+          responseContent: reply,
+          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          success: false,
+          errorMessage: errorMsg
+        });
       }
     }
   });
@@ -184,22 +372,124 @@ function router(pool) {
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
-      if (!match) return;
-      const reply = await pickResponse(match);
-      if (!reply) return;
+      
+      if (!match) {
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: null,
+          automationName: null,
+          responseType: null,
+          responseContent: null,
+          replyLocation: null,
+          success: false,
+          errorMessage: 'No matching automation found'
+        });
+        return;
+      }
+      
+      const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
+      const reply = responseResult?.text;
+      
+      if (!reply) {
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: null,
+          responseContent: null,
+          replyLocation: null,
+          success: false,
+          errorMessage: 'No response generated'
+        });
+        return;
+      }
 
       const conn = await getConnection(platform, accountId);
-      if (!conn) { console.error(`No connected ${platform} account to reply with`); return; }
+      if (!conn) { 
+        console.error(`No connected ${platform} account to reply with`); 
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: responseResult.type,
+          responseContent: reply,
+          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          success: false,
+          errorMessage: `No connected ${platform} account`
+        });
+        return; 
+      }
       const token = decrypt(conn.access_token);
 
       try {
         if (triggerType === 'comment') {
           await instagram.replyToComment(token, replyTargetId, reply);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'comment',
+            success: true,
+            errorMessage: null
+          });
         } else if (triggerType === 'dm') {
           await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId: null,
+            senderId,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'dm',
+            success: true,
+            errorMessage: null
+          });
         }
       } catch (err) {
-        console.error(`Auto-reply failed (${platform}/${triggerType}):`, err.response?.data || err.message);
+        const errorMsg = err.response?.data || err.message;
+        console.error(`Auto-reply failed (${platform}/${triggerType}):`, errorMsg);
+        await logAutomationEvent(pool, {
+          platform,
+          triggerType,
+          triggerText: text,
+          mediaId,
+          senderId,
+          accountId,
+          automationId: match.id,
+          automationName: match.name,
+          responseType: responseResult?.type,
+          responseContent: reply,
+          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          success: false,
+          errorMessage: errorMsg
+        });
       }
     }
   });
@@ -227,27 +517,116 @@ function router(pool) {
     let payload;
     try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
 
+    const platform = 'threads';
     for (const entry of payload.entry || []) {
       for (const change of entry.changes || []) {
         if (change.field !== 'replies') continue; // adjust once real payloads are confirmed
         const value = change.value;
         const replyId = value.id;
         const text = value.text;
+        const mediaId = value.media?.id || entry.id;
         if (await alreadyProcessed(`threads_reply:${replyId}`)) continue;
 
         const automations = await getActiveAutomations();
-        const match = findMatch(automations, { platform: 'threads', triggerType: 'comment', text });
-        if (!match) continue;
-        const reply = await pickResponse(match);
-        if (!reply) continue;
+        const match = findMatch(automations, { platform, triggerType: 'comment', text, mediaId });
+        
+        if (!match) {
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType: 'comment',
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId: entry.id,
+            automationId: null,
+            automationName: null,
+            responseType: null,
+            responseContent: null,
+            replyLocation: null,
+            success: false,
+            errorMessage: 'No matching automation found'
+          });
+          continue;
+        }
+        
+        const responseResult = await getResponseForTrigger(match, 'comment', platform, text);
+        const reply = responseResult?.text;
+        
+        if (!reply) {
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType: 'comment',
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId: entry.id,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: null,
+            responseContent: null,
+            replyLocation: null,
+            success: false,
+            errorMessage: 'No response generated'
+          });
+          continue;
+        }
 
         const conn = await getConnection('threads');
-        if (!conn) { console.error('No connected Threads account to reply with'); continue; }
+        if (!conn) { 
+          console.error('No connected Threads account to reply with'); 
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType: 'comment',
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId: entry.id,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'comment',
+            success: false,
+            errorMessage: 'No connected Threads account'
+          });
+          continue; 
+        }
         const token = decrypt(conn.access_token);
         try {
           await threads.replyToThread(token, conn.account_id, replyId, reply);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType: 'comment',
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId: entry.id,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult.type,
+            responseContent: reply,
+            replyLocation: 'comment',
+            success: true,
+            errorMessage: null
+          });
         } catch (err) {
-          console.error('Threads auto-reply failed:', err.response?.data || err.message);
+          const errorMsg = err.response?.data || err.message;
+          console.error('Threads auto-reply failed:', errorMsg);
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType: 'comment',
+            triggerText: text,
+            mediaId,
+            senderId: null,
+            accountId: entry.id,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: responseResult?.type,
+            responseContent: reply,
+            replyLocation: 'comment',
+            success: false,
+            errorMessage: errorMsg
+          });
         }
       }
     }
