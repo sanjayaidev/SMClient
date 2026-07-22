@@ -16,7 +16,7 @@ function router(pool) {
   r.post('/', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
-      const { name, type, keywords, platforms, reply_location, response_type, response_data, is_active, target_post_id } = req.body;
+      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
@@ -32,14 +32,16 @@ function router(pool) {
         targetPostId = postCheck.rows[0].id;
       }
       const result = await pool.query(
-        `INSERT INTO automations (user_id, name, type, keywords, platforms, reply_location, response_type, response_data, is_active, target_post_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        `INSERT INTO automations (user_id, name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
           userId,
           name,
           type,
           JSON.stringify(keywords || []),
           JSON.stringify(platforms || ['instagram', 'facebook', 'threads']),
+          ai_prompt || null,
+          JSON.stringify(variations || []),
           reply_location || 'comment',
           response_type || 'text',
           JSON.stringify(response_data || {}),
