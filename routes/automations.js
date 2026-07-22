@@ -20,8 +20,10 @@ function router(pool) {
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
-      if (type !== 'comment' && type !== 'dm') {
-        return res.status(400).json({ error: `type must be "comment" or "dm", got "${type}"` });
+      // Support both single trigger type and 'both' for comment+dm
+      const validTypes = ['comment', 'dm', 'both'];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: `type must be "comment", "dm", or "both", got "${type}"` });
       }
       let targetPostId = null;
       if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
@@ -31,6 +33,29 @@ function router(pool) {
         }
         targetPostId = postCheck.rows[0].id;
       }
+      
+      // Process response_data to extract variations and ai_prompt for backward compatibility
+      let processedVariations = variations || [];
+      let processedAiPrompt = ai_prompt || null;
+      
+      if (response_data) {
+        // Extract variations from response_data if present
+        if (response_data.variations && Array.isArray(response_data.variations)) {
+          processedVariations = response_data.variations;
+        }
+        // Also check for comment-specific variations
+        if (response_data.comment && response_data.comment.variations) {
+          processedVariations = response_data.comment.variations;
+        }
+        // Extract ai_prompt from response_data if present
+        if (response_data.system_prompt) {
+          processedAiPrompt = response_data.system_prompt;
+        }
+        if (response_data.comment && response_data.comment.system_prompt) {
+          processedAiPrompt = response_data.comment.system_prompt;
+        }
+      }
+      
       const result = await pool.query(
         `INSERT INTO automations (user_id, name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
@@ -40,8 +65,8 @@ function router(pool) {
           type,
           JSON.stringify(keywords || []),
           JSON.stringify(platforms || ['instagram', 'facebook', 'threads']),
-          ai_prompt || null,
-          JSON.stringify(variations || []),
+          processedAiPrompt,
+          JSON.stringify(processedVariations),
           reply_location || 'comment',
           response_type || 'text',
           JSON.stringify(response_data || {}),
@@ -75,8 +100,10 @@ function router(pool) {
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
-      if (type !== 'comment' && type !== 'dm') {
-        return res.status(400).json({ error: `type must be "comment" or "dm", got "${type}"` });
+      // Support both single trigger type and 'both' for comment+dm
+      const validTypes = ['comment', 'dm', 'both'];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ error: `type must be "comment", "dm", or "both", got "${type}"` });
       }
       
       // Verify ownership of the automation
@@ -94,6 +121,28 @@ function router(pool) {
         targetPostId = postCheck.rows[0].id;
       }
       
+      // Process response_data to extract variations and ai_prompt for backward compatibility
+      let processedVariations = variations || [];
+      let processedAiPrompt = ai_prompt || null;
+      
+      if (response_data) {
+        // Extract variations from response_data if present
+        if (response_data.variations && Array.isArray(response_data.variations)) {
+          processedVariations = response_data.variations;
+        }
+        // Also check for comment-specific variations
+        if (response_data.comment && response_data.comment.variations) {
+          processedVariations = response_data.comment.variations;
+        }
+        // Extract ai_prompt from response_data if present
+        if (response_data.system_prompt) {
+          processedAiPrompt = response_data.system_prompt;
+        }
+        if (response_data.comment && response_data.comment.system_prompt) {
+          processedAiPrompt = response_data.comment.system_prompt;
+        }
+      }
+      
       const result = await pool.query(
         `UPDATE automations 
          SET name=$1, type=$2, keywords=$3, platforms=$4, ai_prompt=$5, variations=$6, 
@@ -104,8 +153,8 @@ function router(pool) {
           type,
           JSON.stringify(keywords || []),
           JSON.stringify(platforms || ['instagram', 'facebook', 'threads']),
-          ai_prompt || null,
-          JSON.stringify(variations || []),
+          processedAiPrompt,
+          JSON.stringify(processedVariations),
           reply_location || 'comment',
           response_type || 'text',
           JSON.stringify(response_data || {}),
