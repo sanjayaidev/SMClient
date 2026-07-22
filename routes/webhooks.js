@@ -15,6 +15,18 @@ const IG_APP_SECRET = process.env.IG_SECRET;
 const TH_VERIFY_TOKEN = process.env.TH_WEBHOOK_VERIFY_TOKEN;
 const TH_APP_SECRET = process.env.TH_SECRET;
 
+// In-memory debug log for recent webhook events (last 100 events)
+const webhookDebugLog = [];
+const MAX_DEBUG_LOG_SIZE = 100;
+
+function addToDebugLog(event) {
+  event.timestamp = new Date().toISOString();
+  webhookDebugLog.push(event);
+  if (webhookDebugLog.length > MAX_DEBUG_LOG_SIZE) {
+    webhookDebugLog.shift();
+  }
+}
+
 // Helper to log automation events to database
 async function logAutomationEvent(pool, data) {
   try {
@@ -54,44 +66,72 @@ function getCommentVariations(variations) {
 
 // Helper to pick response based on trigger type and automation config
 async function getResponseForTrigger(automation, triggerType, platform, triggerText) {
-  const variations = automation.variations || [];
+  // First check response_data for platform-specific and trigger-specific configuration
+  const responseData = automation.response_data || {};
   
-  // For comments: use variations as alternative options (pick 3 random)
+  // For comments: check for comment-specific config first, then fallback to general
   if (triggerType === 'comment') {
-    if (automation.ai_prompt) {
-      const aiText = await generateReply(automation.ai_prompt);
+    const commentConfig = responseData.comment || responseData.general || responseData;
+    
+    // Check AI prompt first
+    const aiPrompt = commentConfig.system_prompt || automation.ai_prompt;
+    if (aiPrompt) {
+      const aiText = await generateReply(aiPrompt);
       if (aiText) return { text: aiText, type: 'ai' };
     }
-    if (variations.length) {
-      // Pick random variation from the 3 pre-selected options
-      const commentVariations = getCommentVariations(variations);
-      if (commentVariations.length > 0) {
-        const selectedVariation = commentVariations[Math.floor(Math.random() * commentVariations.length)];
+    
+    // Check for comment variations (up to 3)
+    const commentVariations = commentConfig.variations || automation.variations || [];
+    if (commentVariations.length > 0) {
+      // Pick 3 random variations and select one
+      const selectedVariations = getCommentVariations(commentVariations);
+      if (selectedVariations.length > 0) {
+        const selectedVariation = selectedVariations[Math.floor(Math.random() * selectedVariations.length)];
         return { text: selectedVariation, type: 'variation' };
       }
-      // Fallback to any variation if less than 3
-      const selectedVariation = variations[Math.floor(Math.random() * variations.length)];
+    }
+    
+    // Fallback to any variations
+    const allVariations = automation.variations || [];
+    if (allVariations.length > 0) {
+      const selectedVariation = allVariations[Math.floor(Math.random() * allVariations.length)];
       return { text: selectedVariation, type: 'variation' };
+    }
+    
+    // Check for button or media responses
+    if (commentConfig.type === 'button' && commentConfig.button_text && commentConfig.button_url) {
+      return { 
+        text: commentConfig.message || commentConfig.button_text, 
+        type: 'button',
+        buttonText: commentConfig.button_text,
+        buttonUrl: commentConfig.button_url
+      };
+    }
+    
+    if (commentConfig.type === 'media' && commentConfig.media_url) {
+      return { 
+        text: commentConfig.caption || '', 
+        type: 'media',
+        mediaUrl: commentConfig.media_url
+      };
     }
   }
   
   // For DMs: handle based on support type per platform
   if (triggerType === 'dm') {
-    // Check if automation has platform-specific DM response configuration
-    const responseData = automation.response_data || {};
-    const platformConfig = responseData[platform] || responseData.general || {};
+    const dmConfig = responseData.dm || responseData[platform] || responseData.general || responseData;
     
-    if (platformConfig.support_type === 'tiered') {
+    if (dmConfig.support_type === 'tiered') {
       // Tiered support: escalate based on keywords or conversation history
-      const tier = platformConfig.tiers?.find(t => 
+      const tier = dmConfig.tiers?.find(t => 
         t.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
       );
       if (tier?.response) {
         return { text: tier.response, type: 'tiered_support' };
       }
-    } else if (platformConfig.support_type === 'categorized') {
+    } else if (dmConfig.support_type === 'categorized') {
       // Categorized support: route based on issue type
-      const category = platformConfig.categories?.find(c => 
+      const category = dmConfig.categories?.find(c => 
         c.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
       );
       if (category?.response) {
@@ -99,14 +139,36 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
       }
     }
     
-    // Fallback to AI or variations
-    if (automation.ai_prompt) {
-      const aiText = await generateReply(automation.ai_prompt);
+    // Check AI prompt for DMs
+    const aiPrompt = dmConfig.system_prompt || automation.ai_prompt;
+    if (aiPrompt) {
+      const aiText = await generateReply(aiPrompt);
       if (aiText) return { text: aiText, type: 'ai' };
     }
-    if (variations.length) {
-      const selectedVariation = variations[Math.floor(Math.random() * variations.length)];
+    
+    // Check for DM-specific variations
+    const dmVariations = dmConfig.variations || automation.variations || [];
+    if (dmVariations.length > 0) {
+      const selectedVariation = dmVariations[Math.floor(Math.random() * dmVariations.length)];
       return { text: selectedVariation, type: 'variation' };
+    }
+    
+    // Check for button or media responses for DMs
+    if (dmConfig.type === 'button' && dmConfig.button_text && dmConfig.button_url) {
+      return { 
+        text: dmConfig.message || dmConfig.button_text, 
+        type: 'button',
+        buttonText: dmConfig.button_text,
+        buttonUrl: dmConfig.button_url
+      };
+    }
+    
+    if (dmConfig.type === 'media' && dmConfig.media_url) {
+      return { 
+        text: dmConfig.caption || '', 
+        type: 'media',
+        mediaUrl: dmConfig.media_url
+      };
     }
   }
   
@@ -122,13 +184,25 @@ function router(pool) {
   function verifySignature(req, secret, header) {
     if (!secret) return true; // allow running without a secret in early dev, but warn
     const sig = req.headers[header];
-    if (!sig) return false;
-    const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(req.body).digest('hex');
-    try {
-      return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-    } catch {
+    if (!sig) {
+      console.log(`❌ Signature verification failed: Missing ${header} header`);
+      addToDebugLog({ event: 'signature_check_failed', reason: 'missing_header', header });
       return false;
     }
+    const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+    let isValid = false;
+    try {
+      isValid = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    } catch (err) {
+      console.log(`❌ Signature verification failed: ${err.message}`);
+      addToDebugLog({ event: 'signature_check_failed', reason: 'error', error: err.message });
+      return false;
+    }
+    if (!isValid) {
+      console.log(`❌ Signature verification failed: Signature mismatch`);
+      addToDebugLog({ event: 'signature_check_failed', reason: 'mismatch' });
+    }
+    return isValid;
   }
 
   async function alreadyProcessed(eventId) {
@@ -183,19 +257,40 @@ function router(pool) {
   });
 
   r.post('/webhooks/facebook', express.raw({ type: 'application/json' }), async (req, res) => {
+    // Log raw payload for debugging BEFORE signature check
+    const rawBody = req.body.toString('utf8');
+    console.log('📥 Facebook webhook received - Raw payload:', rawBody.substring(0, 500));
+    addToDebugLog({ 
+      platform: 'facebook', 
+      event: 'webhook_received', 
+      headers: req.headers,
+      rawPayload: JSON.parse(rawBody || '{}'),
+      bodyLength: rawBody.length
+    });
+    
     if (!verifySignature(req, FB_APP_SECRET, 'x-hub-signature-256')) {
       return res.sendStatus(403);
     }
     res.sendStatus(200); // ack immediately; Facebook expects a fast 200
 
     let payload;
-    try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
+    try { 
+      payload = JSON.parse(rawBody); 
+    } catch (err) { 
+      console.log(`❌ Failed to parse Facebook webhook payload: ${err.message}`);
+      addToDebugLog({ platform: 'facebook', event: 'parse_error', error: err.message, rawBody });
+      return; 
+    }
 
     const platform = 'facebook';
     for (const entry of payload.entry || []) {
       // Comments arrive as "changes" with field "comments"
       for (const change of entry.changes || []) {
-        if (change.field !== 'comments') continue;
+        if (change.field !== 'comments') {
+          console.log(`⚠️  Skipping Facebook change with field: ${change.field}`);
+          addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
+          continue;
+        }
         const value = change.value;
         const commentId = value.id;
         const text = value.text;
@@ -357,19 +452,40 @@ function router(pool) {
   });
 
   r.post('/webhooks/instagram', express.raw({ type: 'application/json' }), async (req, res) => {
+    // Log raw payload for debugging BEFORE signature check
+    const rawBody = req.body.toString('utf8');
+    console.log('📥 Instagram webhook received - Raw payload:', rawBody.substring(0, 500));
+    addToDebugLog({ 
+      platform: 'instagram', 
+      event: 'webhook_received', 
+      headers: req.headers,
+      rawPayload: JSON.parse(rawBody || '{}'),
+      bodyLength: rawBody.length
+    });
+    
     if (!verifySignature(req, IG_APP_SECRET, 'x-hub-signature-256')) {
       return res.sendStatus(403);
     }
     res.sendStatus(200);
 
     let payload;
-    try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
+    try { 
+      payload = JSON.parse(rawBody); 
+    } catch (err) { 
+      console.log(`❌ Failed to parse Instagram webhook payload: ${err.message}`);
+      addToDebugLog({ platform: 'instagram', event: 'parse_error', error: err.message, rawBody });
+      return; 
+    }
 
     const platform = 'instagram';
     for (const entry of payload.entry || []) {
       // Comments arrive as "changes" with field "comments"
       for (const change of entry.changes || []) {
-        if (change.field !== 'comments') continue;
+        if (change.field !== 'comments') {
+          console.log(`⚠️  Skipping Instagram change with field: ${change.field}`);
+          addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
+          continue;
+        }
         const value = change.value;
         const commentId = value.id;
         const text = value.text;
@@ -390,12 +506,23 @@ function router(pool) {
 
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
       console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
+      addToDebugLog({ 
+        platform, 
+        event: 'trigger_received', 
+        triggerType, 
+        text, 
+        mediaId, 
+        senderId, 
+        accountId,
+        replyTargetId 
+      });
       
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
       
       if (!match) {
         console.log(`⚠️  No matching automation found for ${platform}/${triggerType}`);
+        addToDebugLog({ platform, event: 'no_automation_match', triggerType, text, mediaId });
         // Log trigger even if no automation matched
         await logAutomationEvent(pool, {
           platform,
@@ -416,11 +543,14 @@ function router(pool) {
       }
       
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
+      addToDebugLog({ platform, event: 'automation_matched', automationId: match.id, automationName: match.name, triggerType });
       
       const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
       const reply = responseResult?.text;
       
       if (!reply) {
+        console.log(`⚠️  No response generated for automation "${match.name}"`);
+        addToDebugLog({ platform, event: 'no_response_generated', automationId: match.id, triggerType, responseData: match.response_data, variations: match.variations, ai_prompt: match.ai_prompt });
         await logAutomationEvent(pool, {
           platform,
           triggerType,
@@ -688,6 +818,29 @@ function router(pool) {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // ===== Webhook Debug Log API Endpoint =====
+  // Returns recent webhook events for debugging - protected by session auth
+  r.get('/api/webhooks/debug-log', async (req, res) => {
+    // Check if user is authenticated (simple session check)
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const limit = parseInt(req.query.limit) || 50;
+    const filteredLog = webhookDebugLog.slice(-limit);
+    res.json({ debugLog: filteredLog, totalEvents: webhookDebugLog.length });
+  });
+
+  // Clear debug log endpoint
+  r.post('/api/webhooks/clear-debug-log', async (req, res) => {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    webhookDebugLog.length = 0; // Clear the array
+    res.json({ success: true, message: 'Debug log cleared' });
   });
 
   return r;

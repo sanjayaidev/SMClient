@@ -2034,7 +2034,8 @@
         }
 
         const triggerRaw = document.getElementById('autoTrigger').value;
-        const type = triggerRaw === 'dm' ? 'dm' : 'comment';
+        // Keep 'both' as is - backend now supports it
+        const type = triggerRaw;
         
         const keywords = document.getElementById('kwInput').value.split(',').map(k => k.trim()).filter(Boolean);
         const variations = Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean);
@@ -2043,33 +2044,100 @@
         const replyLocation = document.getElementById('replyLocation').value;
         
         let response_data = {};
+        const triggerType = document.getElementById('autoTrigger').value;
+        
         if (responseType === 'text') {
-            response_data = {
+            // Build separate configurations for comment and DM based on trigger type
+            const baseConfig = {
                 type: 'text',
                 message: document.getElementById('replyMessage').value.trim(),
-                variations: variations
+                variations: variations,
+                system_prompt: document.getElementById('aiSystemPromptStep3')?.value?.trim() || null
             };
+            
+            if (triggerType === 'both') {
+                // For 'both' trigger type, create separate comment and DM configs
+                response_data = {
+                    type: 'text',
+                    comment: { ...baseConfig },
+                    dm: { 
+                        type: 'text',
+                        message: baseConfig.message,
+                        variations: baseConfig.variations,
+                        system_prompt: baseConfig.system_prompt
+                    }
+                };
+            } else {
+                // For single trigger type, use the trigger type as key
+                response_data = {
+                    type: 'text',
+                    [triggerType]: { ...baseConfig },
+                    general: { ...baseConfig }  // fallback
+                };
+            }
         } else if (responseType === 'button') {
-            response_data = {
+            const buttonConfig = {
                 type: 'button',
                 button_text: document.getElementById('buttonText').value.trim(),
                 button_url: document.getElementById('buttonUrl').value.trim(),
                 message: document.getElementById('buttonMessage').value.trim()
             };
+            
+            if (triggerType === 'both') {
+                response_data = {
+                    type: 'button',
+                    comment: { ...buttonConfig },
+                    dm: { ...buttonConfig }
+                };
+            } else {
+                response_data = {
+                    type: 'button',
+                    [triggerType]: { ...buttonConfig },
+                    general: { ...buttonConfig }
+                };
+            }
         } else if (responseType === 'media') {
-            response_data = {
+            const mediaConfig = {
                 type: 'media',
                 media_url: document.getElementById('mediaUrl').value.trim(),
                 caption: document.getElementById('mediaCaption').value.trim()
             };
+            
+            if (triggerType === 'both') {
+                response_data = {
+                    type: 'media',
+                    comment: { ...mediaConfig },
+                    dm: { ...mediaConfig }
+                };
+            } else {
+                response_data = {
+                    type: 'media',
+                    [triggerType]: { ...mediaConfig },
+                    general: { ...mediaConfig }
+                };
+            }
         } else if (responseType === 'ai') {
-            response_data = {
+            const aiConfig = {
                 type: 'ai',
                 model: document.getElementById('aiModelStep3').value,
                 system_prompt: document.getElementById('aiSystemPromptStep3').value.trim(),
                 temperature: parseFloat(document.getElementById('aiTempStep3').value),
                 max_tokens: parseInt(document.getElementById('aiMaxTokensStep3').value)
             };
+            
+            if (triggerType === 'both') {
+                response_data = {
+                    type: 'ai',
+                    comment: { ...aiConfig },
+                    dm: { ...aiConfig }
+                };
+            } else {
+                response_data = {
+                    type: 'ai',
+                    [triggerType]: { ...aiConfig },
+                    general: { ...aiConfig }
+                };
+            }
         }
 
         const body = {

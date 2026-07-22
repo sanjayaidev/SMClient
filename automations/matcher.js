@@ -1,13 +1,16 @@
 const { generateReply } = require('../lib/ai');
 
-// automations rows: { type: 'comment'|'dm', platforms: [...], keywords: [...],
+// automations rows: { type: 'comment'|'dm'|'both', platforms: [...], keywords: [...],
 //                      variations: [...], ai_prompt, is_active, target_post_id,
 //                      target_published_ids: { instagram: '...', facebook: '...', threads: '...' } }
 function findMatch(automations, { platform, triggerType, text, mediaId }) {
   const lowerText = (text || '').toLowerCase();
   return automations.find((a) => {
     if (!a.is_active) return false;
-    if (a.type !== triggerType) return false;
+    
+    // Support 'both' type which matches both comment and dm triggers
+    if (a.type !== triggerType && a.type !== 'both') return false;
+    
     const platforms = a.platforms || [];
     if (platforms.length && !platforms.includes(platform)) return false;
     // If this automation is scoped to one specific post, only match triggers
