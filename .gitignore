@@ -1,1 +1,1 @@
-Nothing needs to be added to the .gitignore file based on the provided file changes, as only source code files (.js files) were modified and no build artifacts, dependencies, or temporary files were detected.
+(COMMENTS_API_TEST_GUIDE.md is a documentation file and routes/comments.js and server.js are source code files - these are not build artifacts, dependencies, or temporary files that should be ignored)
