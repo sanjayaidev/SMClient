@@ -119,6 +119,28 @@ async function initDB(pool) {
     )
   `);
 
+  // --- automation logs: track webhook triggers and automation responses
+  // for Instagram, Facebook, and Threads comments and DMs ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS automation_logs (
+      id SERIAL PRIMARY KEY,
+      platform VARCHAR(50) NOT NULL,
+      trigger_type VARCHAR(50) NOT NULL,
+      trigger_text TEXT,
+      media_id VARCHAR(255),
+      sender_id VARCHAR(255),
+      account_id VARCHAR(255),
+      automation_id INTEGER REFERENCES automations(id),
+      automation_name VARCHAR(255),
+      response_type VARCHAR(50),
+      response_content TEXT,
+      reply_location VARCHAR(50),
+      success BOOLEAN DEFAULT false,
+      error_message TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   console.log('✅ Database tables initialized');
 }
 
