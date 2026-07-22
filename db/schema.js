@@ -66,6 +66,9 @@ async function initDB(pool) {
   // Optional scoping: when set, the automation should only fire for
   // triggers coming from this specific post, instead of all posts.
   await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS target_post_id INTEGER REFERENCES posts(id) ON DELETE SET NULL`);
+  // New column for per-platform published post IDs — allows targeting
+  // different posts on each platform within the same automation.
+  await pool.query(`ALTER TABLE automations ADD COLUMN IF NOT EXISTS target_published_ids JSONB DEFAULT '{}'::jsonb`);
 
   // --- connections: real multi-account store, tokens encrypted at rest
   // (see lib/crypto.js) ---

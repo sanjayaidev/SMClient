@@ -234,10 +234,11 @@ function router(pool) {
     );
     return res.rows[0] || null;
   }
-
   async function getActiveAutomations() {
     const res = await pool.query(
-      `SELECT automations.*, posts.published_ids AS target_published_ids
+      `SELECT automations.*, 
+              COALESCE(automations.target_published_ids, '{}'::jsonb) AS automation_target_published_ids,
+              posts.published_ids AS post_published_ids
        FROM automations
        LEFT JOIN posts ON posts.id = automations.target_post_id
        WHERE automations.is_active = true`
@@ -245,8 +246,8 @@ function router(pool) {
     return res.rows.map(row => ({
       ...row,
       // Ensure JSON fields are parsed properly (PostgreSQL may return them as strings)
-      response_data: typeof row.response_data === 'string' 
-        ? JSON.parse(row.response_data) 
+      response_data: typeof row.response_data === 'string'
+        ? JSON.parse(row.response_data)
         : row.response_data || {},
       variations: typeof row.variations === 'string'
         ? JSON.parse(row.variations)
@@ -257,11 +258,18 @@ function router(pool) {
       platforms: typeof row.platforms === 'string'
         ? JSON.parse(row.platforms)
         : row.platforms || ['instagram', 'facebook', 'threads'],
-      target_published_ids: typeof row.target_published_ids === 'string'
-        ? JSON.parse(row.target_published_ids)
-        : row.target_published_ids || {}
+      // Use the new target_published_ids column from automations table if set,
+      // otherwise fall back to deriving from posts.published_ids for legacy support
+      target_published_ids: typeof row.automation_target_published_ids === 'string'
+        ? JSON.parse(row.automation_target_published_ids)
+        : (row.automation_target_published_ids && Object.keys(row.automation_target_published_ids).length > 0)
+          ? row.automation_target_published_ids
+          : (typeof row.post_published_ids === 'string'
+              ? JSON.parse(row.post_published_ids)
+              : row.post_published_ids || {})
     }));
   }
+
 
   // ===== Facebook Webhook =====
   r.get('/webhooks/facebook', (req, res) => {
