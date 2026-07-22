@@ -463,13 +463,27 @@ function router(pool) {
       bodyLength: rawBody.length
     });
     
-    // TEMPORARY FIX: Using FB credentials for testing - replace IG_APP_SECRET with FB_APP_SECRET
-    const secretToUse = FB_APP_SECRET; // Temporarily use FB secret for Instagram webhook
-    console.log(`🔧 TEMP: Using ${secretToUse === FB_APP_SECRET ? 'FB_APP_SECRET' : 'IG_APP_SECRET'} for Instagram signature verification`);
+    // Signature verification with fallback: try IG_SECRET first, then FB_SECRET
+    const secretsToTry = [IG_APP_SECRET, FB_APP_SECRET].filter(Boolean);
+    let verified = false;
+    let usedSecret = null;
     
-    if (!verifySignature(req, secretToUse, 'x-hub-signature-256')) {
+    for (const secret of secretsToTry) {
+      const secretName = secret === FB_APP_SECRET ? 'FB_APP_SECRET' : 'IG_APP_SECRET';
+      console.log(`🔐 Trying ${secretName} for Instagram signature verification`);
+      if (verifySignature(req, secret, 'x-hub-signature-256')) {
+        verified = true;
+        usedSecret = secretName;
+        break;
+      }
+    }
+    
+    if (!verified) {
+      console.log('❌ All signature verification attempts failed');
       return res.sendStatus(403);
     }
+    
+    console.log(`✅ Signature verified using ${usedSecret}`);
     res.sendStatus(200);
 
     let payload;
