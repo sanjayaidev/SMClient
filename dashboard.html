@@ -1658,19 +1658,35 @@
             }
         });
         
-        // Step 2: Set scope
+        // Step 2: Set scope - check for target_published_ids first (new multi-platform), then legacy target_post_id
+        const hasTargetPublishedIds = a.target_published_ids && Object.keys(a.target_published_ids).length > 0;
+        const hasTargetPostId = a.target_post_id;
+        const isSpecificScope = hasTargetPublishedIds || hasTargetPostId;
+        
         document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(c => c.classList.remove('selected'));
-        const scopeCard = document.querySelector(`#scopeSelectGrid .auto-type-card[data-scope="${a.target_post_id ? 'specific' : 'all'}"]`);
+        const scopeCard = document.querySelector(`#scopeSelectGrid .auto-type-card[data-scope="${isSpecificScope ? 'specific' : 'all'}"]`);
         if (scopeCard) scopeCard.classList.add('selected');
         
-        document.getElementById('specificPostSelector').style.display = a.target_post_id ? 'block' : 'none';
+        document.getElementById('specificPostSelector').style.display = isSpecificScope ? 'block' : 'none';
         
         // Load posts if specific post is selected
-        if (a.target_post_id) {
+        if (isSpecificScope) {
             await ensurePostsLoadedForAutomation();
-            selectedAutomationPostId = String(a.target_post_id);
+            // Populate selectedAutomationPostIdsByPlatform from target_published_ids or legacy target_post_id
+            selectedAutomationPostIdsByPlatform = {};
+            if (hasTargetPublishedIds) {
+                // New per-platform targeting
+                Object.keys(a.target_published_ids).forEach(plat => {
+                    selectedAutomationPostIdsByPlatform[plat] = String(a.target_published_ids[plat]);
+                });
+            } else if (hasTargetPostId) {
+                // Legacy single-post targeting - apply to all selected platforms
+                autoPlatforms.forEach(plat => {
+                    selectedAutomationPostIdsByPlatform[plat] = String(a.target_post_id);
+                });
+            }
         } else {
-            selectedAutomationPostId = null;
+            selectedAutomationPostIdsByPlatform = {};
         }
         
         // Step 3: Set trigger and keywords
@@ -1741,16 +1757,19 @@
             // If the post picker (step 2) is already showing, its list of
             // candidate posts depends on which platforms are selected here —
             // re-filter it so it stays in sync.
-            if (postsLoadedForAutomation) renderPostRadioOptions();
+            if (postsLoadedForAutomation) renderPostCheckboxOptions();
         });
     });
 
     // Scope selection
-    let selectedAutomationPostId = null; // either a numeric local post id, or "remote:<platform>:<remote_id>"
     let postsLoadedForAutomation = false;
     let remotePostsForAutomation = []; // posts that exist on Meta but aren't tracked as a local `posts` row yet
 
-    function renderPostRadioOptions() {
+    // Stores selected post IDs per platform when using "Specific Posts" scope
+    // Format: { instagram: '123', facebook: 'remote:facebook:abc', threads: '456' }
+    let selectedAutomationPostIdsByPlatform = {};
+
+    function renderPostCheckboxOptions() {
         const list = document.getElementById('postSelectList');
         const selectedPlatforms = getSelectedPlatforms();
 
@@ -1764,14 +1783,17 @@
             .filter(rp => !rp.local_post_id)
             .filter(rp => selectedPlatforms.includes(rp.platform));
 
-        // If the previously-selected post no longer matches the current
-        // platform filter, drop the selection rather than silently keep it.
-        if (selectedAutomationPostId) {
-            const stillLocalMatch = filteredLocal.some(p => String(p.id) === String(selectedAutomationPostId));
-            const stillRemoteMatch = typeof selectedAutomationPostId === 'string' && selectedAutomationPostId.startsWith('remote:') &&
-                untrackedRemote.some(rp => `remote:${rp.platform}:${rp.remote_id}` === selectedAutomationPostId);
-            if (!stillLocalMatch && !stillRemoteMatch) selectedAutomationPostId = null;
-        }
+        // Clean up any selected posts for platforms that are no longer selected
+        selectedPlatforms.forEach(plat => {
+            if (!selectedAutomationPostIdsByPlatform.hasOwnProperty(plat)) {
+                selectedAutomationPostIdsByPlatform[plat] = null;
+            }
+        });
+        Object.keys(selectedAutomationPostIdsByPlatform).forEach(plat => {
+            if (!selectedPlatforms.includes(plat)) {
+                delete selectedAutomationPostIdsByPlatform[plat];
+            }
+        });
 
         if (!filteredLocal.length && !untrackedRemote.length) {
             const platformNames = selectedPlatforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('/');
@@ -1816,7 +1838,7 @@
             html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafbfc;">
                 <div style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="fab ${platformIcon}" style="color:var(--${platform === 'facebook' ? 'fb' : platform === 'instagram' ? 'ig' : 'threads'});"></i>
-                    ${platformLabel} Posts
+                    ${platformLabel} Posts <span style="font-size:10px;color:var(--text-muted);">(select one)</span>
                 </div>
                 <div style="max-height:200px;overflow-y:auto;">`;
             
@@ -1825,10 +1847,11 @@
             } else {
                 localPosts.forEach(p => {
                     const dateLabel = p.scheduled_date ? new Date(p.scheduled_date).toLocaleDateString() : 'Unscheduled';
-                    const checked = String(p.id) === String(selectedAutomationPostId) ? 'checked' : '';
+                    const currentValue = selectedAutomationPostIdsByPlatform[platform] || '';
+                    const isChecked = String(p.id) === String(currentValue) ? 'checked' : '';
                     html += `
                         <label style="display:flex;align-items:flex-start;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:12px;">
-                            <input type="radio" name="automationPost" value="${p.id}" ${checked} style="margin-top:2px;">
+                            <input type="radio" name="automationPost_${platform}" value="${p.id}" data-platform="${platform}" ${isChecked} style="margin-top:2px;">
                             <span>
                                 <strong>${(p.title || 'Untitled').replace(/</g, '&lt;')}</strong><br>
                                 <span class="text-muted" style="font-size:11px;">${dateLabel}</span>
@@ -1839,10 +1862,11 @@
                     const value = `remote:${rp.platform}:${rp.remote_id}`;
                     const dateLabel = rp.timestamp ? new Date(rp.timestamp).toLocaleDateString() : 'Unknown date';
                     const titleText = (rp.caption || `${platformLabel} post`).slice(0, 50).replace(/</g, '&lt;');
-                    const checked = value === String(selectedAutomationPostId) ? 'checked' : '';
+                    const currentValue = selectedAutomationPostIdsByPlatform[platform] || '';
+                    const isChecked = value === String(currentValue) ? 'checked' : '';
                     html += `
                         <label style="display:flex;align-items:flex-start;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:12px;">
-                            <input type="radio" name="automationPost" value="${value}" ${checked} style="margin-top:2px;">
+                            <input type="radio" name="automationPost_${platform}" value="${value}" data-platform="${platform}" ${isChecked} style="margin-top:2px;">
                             <span>
                                 <strong>${titleText}</strong><br>
                                 <span class="text-muted" style="font-size:11px;">${dateLabel}</span>
@@ -1856,8 +1880,11 @@
         
         html += '</div>';
         list.innerHTML = html;
-        list.querySelectorAll('input[name="automationPost"]').forEach(input => {
-            input.addEventListener('change', () => { selectedAutomationPostId = input.value; });
+        list.querySelectorAll('input[name^="automationPost_"]').forEach(input => {
+            input.addEventListener('change', () => {
+                const platform = input.dataset.platform;
+                selectedAutomationPostIdsByPlatform[platform] = input.value;
+            });
         });
     }
 
@@ -1881,7 +1908,7 @@
         } catch (err) {
             console.error('Failed to load posts for automation builder:', err);
         }
-        renderPostRadioOptions();
+        renderPostCheckboxOptions();
     }
 
     document.querySelectorAll('#scopeSelectGrid .auto-type-card').forEach(card => {
@@ -1970,14 +1997,22 @@
             .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ') || '(none selected)';
         if (scope === 'all') {
             document.getElementById('reviewScope').textContent = 'All Future Posts';
-        } else if (typeof selectedAutomationPostId === 'string' && selectedAutomationPostId.startsWith('remote:')) {
-            const [, rPlatform, rId] = selectedAutomationPostId.split(':');
-            const remotePost = remotePostsForAutomation.find(rp => rp.platform === rPlatform && String(rp.remote_id) === rId);
-            const label = remotePost ? (remotePost.caption || `${rPlatform} post`).slice(0, 60) : `${rPlatform} post`;
-            document.getElementById('reviewScope').textContent = `Specific Post — "${label}"`;
         } else {
-            const targetPost = posts.find(p => String(p.id) === String(selectedAutomationPostId));
-            document.getElementById('reviewScope').textContent = targetPost ? `Specific Post — "${targetPost.title}"` : 'Specific Posts (none selected yet)';
+            // For specific scope, show per-platform post selections
+            const platformLabels = selectedPlatformsForReview.map(p => {
+                const selectedValue = selectedAutomationPostIdsByPlatform[p];
+                if (!selectedValue) return `${p}: (no post selected)`;
+                if (typeof selectedValue === 'string' && selectedValue.startsWith('remote:')) {
+                    const [, rPlatform, rId] = selectedValue.split(':');
+                    const remotePost = remotePostsForAutomation.find(rp => rp.platform === rPlatform && String(rp.remote_id) === rId);
+                    const label = remotePost ? (remotePost.caption || `${rPlatform} post`).slice(0, 40) : `${rPlatform} post`;
+                    return `${p}: "${label}"`;
+                } else {
+                    const targetPost = posts.find(post => String(post.id) === String(selectedValue));
+                    return `${p}: "${targetPost ? targetPost.title : 'Unknown'}"`;
+                }
+            });
+            document.getElementById('reviewScope').textContent = platformLabels.join(' | ');
         }
         document.getElementById('reviewTrigger').textContent = trigger.charAt(0).toUpperCase() + trigger.slice(1);
         document.getElementById('reviewKeywords').textContent = keywords;
@@ -1998,38 +2033,48 @@
 
         const scopeCardForSubmit = document.querySelector('#scopeSelectGrid .auto-type-card.selected');
         const scopeForSubmit = scopeCardForSubmit ? scopeCardForSubmit.dataset.scope : 'all';
-        if (scopeForSubmit === 'specific' && !selectedAutomationPostId) {
-            alert('Please select a post to target this automation on.');
-            showStep(2);
-            return;
+        
+        // For "specific posts" scope, validate that each selected platform has a post selected
+        if (scopeForSubmit === 'specific') {
+            const platformsWithoutPost = platforms.filter(p => !selectedAutomationPostIdsByPlatform[p]);
+            if (platformsWithoutPost.length > 0) {
+                alert('Please select a post for each platform: ' + platformsWithoutPost.join(', '));
+                showStep(2);
+                return;
+            }
         }
 
-        let target_post_id = null;
+        // Build target_published_ids object for per-platform post targeting
+        let target_published_ids = {};
         if (scopeForSubmit === 'specific') {
-            if (typeof selectedAutomationPostId === 'string' && selectedAutomationPostId.startsWith('remote:')) {
-                // This post was published directly on the platform, not through this app,
-                // so it has no local `posts` row yet — create one now so target_post_id
-                // (a foreign key) has something to point at.
-                const [, rPlatform, rId] = selectedAutomationPostId.split(':');
-                const remotePost = remotePostsForAutomation.find(rp => rp.platform === rPlatform && String(rp.remote_id) === rId);
-                const importRes = await apiFetch('/api/posts/import', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        platform: rPlatform,
-                        remote_id: rId,
-                        caption: remotePost ? remotePost.caption : '',
-                        timestamp: remotePost ? remotePost.timestamp : null
-                    })
-                });
-                if (!importRes || !importRes.ok) {
-                    alert('Could not import the selected post from ' + rPlatform + '. Please try again.');
-                    return;
+            for (const platform of platforms) {
+                const selectedValue = selectedAutomationPostIdsByPlatform[platform];
+                if (selectedValue) {
+                    if (typeof selectedValue === 'string' && selectedValue.startsWith('remote:')) {
+                        // This post was published directly on the platform, not through this app,
+                        // so it has no local `posts` row yet — create one now so we can reference it.
+                        const [, rPlatform, rId] = selectedValue.split(':');
+                        const remotePost = remotePostsForAutomation.find(rp => rp.platform === rPlatform && String(rp.remote_id) === rId);
+                        const importRes = await apiFetch('/api/posts/import', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                platform: rPlatform,
+                                remote_id: rId,
+                                caption: remotePost ? remotePost.caption : '',
+                                timestamp: remotePost ? remotePost.timestamp : null
+                            })
+                        });
+                        if (!importRes || !importRes.ok) {
+                            alert('Could not import the selected post from ' + rPlatform + '. Please try again.');
+                            return;
+                        }
+                        const importedPost = await importRes.json();
+                        target_published_ids[platform] = String(importedPost.id);
+                    } else {
+                        target_published_ids[platform] = String(selectedValue);
+                    }
                 }
-                const importedPost = await importRes.json();
-                target_post_id = importedPost.id;
-            } else {
-                target_post_id = parseInt(selectedAutomationPostId, 10);
             }
         }
 
@@ -2148,7 +2193,7 @@
             reply_location: replyLocation,
             response_type: responseType,
             response_data,
-            target_post_id,
+            target_published_ids: scopeForSubmit === 'specific' ? target_published_ids : null,
             is_active: true
         };
         

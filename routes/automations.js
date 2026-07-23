@@ -16,7 +16,7 @@ function router(pool) {
   r.post('/', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
-      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id } = req.body;
+      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id, target_published_ids } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
@@ -26,7 +26,26 @@ function router(pool) {
         return res.status(400).json({ error: `type must be "comment", "dm", or "both", got "${type}"` });
       }
       let targetPostId = null;
-      if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
+      let processedTargetPublishedIds = null;
+      
+      // Handle new per-platform targeting (target_published_ids takes precedence)
+      if (target_published_ids && typeof target_published_ids === 'object' && Object.keys(target_published_ids).length > 0) {
+        // Validate each post ID in the target_published_ids object
+        processedTargetPublishedIds = {};
+        for (const [platform, postId] of Object.entries(target_published_ids)) {
+          if (postId) {
+            const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [postId, userId]);
+            if (!postCheck.rows.length) {
+              return res.status(400).json({ error: `target_published_ids.${platform} does not refer to one of your posts` });
+            }
+            processedTargetPublishedIds[platform] = String(postId);
+          }
+        }
+        if (Object.keys(processedTargetPublishedIds).length === 0) {
+          processedTargetPublishedIds = null;
+        }
+      } else if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
+        // Legacy single-post targeting
         const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [target_post_id, userId]);
         if (!postCheck.rows.length) {
           return res.status(400).json({ error: 'target_post_id does not refer to one of your posts' });
@@ -57,8 +76,8 @@ function router(pool) {
       }
       
       const result = await pool.query(
-        `INSERT INTO automations (user_id, name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        `INSERT INTO automations (user_id, name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id, target_published_ids)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
         [
           userId,
           name,
@@ -71,7 +90,8 @@ function router(pool) {
           response_type || 'text',
           JSON.stringify(response_data || {}),
           is_active !== undefined ? is_active : false,
-          targetPostId
+          targetPostId,
+          processedTargetPublishedIds ? JSON.stringify(processedTargetPublishedIds) : null
         ]
       );
       res.json(result.rows[0]);
@@ -96,7 +116,7 @@ function router(pool) {
   r.put('/:id', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
-      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id } = req.body;
+      const { name, type, keywords, platforms, ai_prompt, variations, reply_location, response_type, response_data, is_active, target_post_id, target_published_ids } = req.body;
       if (!name) {
         return res.status(400).json({ error: 'name is required' });
       }
@@ -113,7 +133,26 @@ function router(pool) {
       }
       
       let targetPostId = null;
-      if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
+      let processedTargetPublishedIds = null;
+      
+      // Handle new per-platform targeting (target_published_ids takes precedence)
+      if (target_published_ids && typeof target_published_ids === 'object' && Object.keys(target_published_ids).length > 0) {
+        // Validate each post ID in the target_published_ids object
+        processedTargetPublishedIds = {};
+        for (const [platform, postId] of Object.entries(target_published_ids)) {
+          if (postId) {
+            const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [postId, userId]);
+            if (!postCheck.rows.length) {
+              return res.status(400).json({ error: `target_published_ids.${platform} does not refer to one of your posts` });
+            }
+            processedTargetPublishedIds[platform] = String(postId);
+          }
+        }
+        if (Object.keys(processedTargetPublishedIds).length === 0) {
+          processedTargetPublishedIds = null;
+        }
+      } else if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
+        // Legacy single-post targeting
         const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [target_post_id, userId]);
         if (!postCheck.rows.length) {
           return res.status(400).json({ error: 'target_post_id does not refer to one of your posts' });
@@ -146,8 +185,8 @@ function router(pool) {
       const result = await pool.query(
         `UPDATE automations 
          SET name=$1, type=$2, keywords=$3, platforms=$4, ai_prompt=$5, variations=$6, 
-             reply_location=$7, response_type=$8, response_data=$9, is_active=$10, target_post_id=$11
-         WHERE id=$12 AND user_id=$13 RETURNING *`,
+             reply_location=$7, response_type=$8, response_data=$9, is_active=$10, target_post_id=$11, target_published_ids=$12
+         WHERE id=$13 AND user_id=$14 RETURNING *`,
         [
           name,
           type,
@@ -160,6 +199,7 @@ function router(pool) {
           JSON.stringify(response_data || {}),
           is_active !== undefined ? is_active : false,
           targetPostId,
+          processedTargetPublishedIds ? JSON.stringify(processedTargetPublishedIds) : null,
           req.params.id,
           userId
         ]
