@@ -29,7 +29,7 @@ async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
     // Post with media (image or video)
     const bodyParams = { 
       media_type: mediaType,
-      caption: caption || '' 
+      text: caption || '' 
     };
     bodyParams[paramKey] = mediaUrl;
     
