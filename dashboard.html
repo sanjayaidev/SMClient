@@ -1724,6 +1724,22 @@
         document.getElementById('responseType').value = a.response_type || 'text';
         document.getElementById('replyLocation').value = a.reply_location || 'comment';
         
+        // Populate AI model dropdown before triggering change event
+        const aiModelSelect = document.getElementById('aiModelStep3');
+        if (aiModelSelect.options.length === 0) {
+            aiModels.forEach(model => {
+                const opt = document.createElement('option');
+                if (typeof model === 'string') {
+                    opt.value = model;
+                    opt.textContent = model;
+                } else {
+                    opt.value = model.id || model.model || model.name;
+                    opt.textContent = model.name || model.model || model.id;
+                }
+                aiModelSelect.appendChild(opt);
+            });
+        }
+        
         // Trigger change event to show correct response content
         document.getElementById('responseType').dispatchEvent(new Event('change'));
         
@@ -1769,7 +1785,22 @@
             document.getElementById('mediaUrl').value = responseData.media_url || '';
             document.getElementById('mediaCaption').value = responseData.caption || '';
         } else if (a.response_type === 'ai') {
-            document.getElementById('aiModelStep3').value = responseData.model || 'gpt-4o-mini';
+            // Populate the AI model dropdown in the modal with available models
+            const aiModelSelect = document.getElementById('aiModelStep3');
+            aiModelSelect.innerHTML = '';
+            aiModels.forEach(model => {
+                const opt = document.createElement('option');
+                if (typeof model === 'string') {
+                    opt.value = model;
+                    opt.textContent = model;
+                } else {
+                    opt.value = model.id || model.model || model.name;
+                    opt.textContent = model.name || model.model || model.id;
+                }
+                aiModelSelect.appendChild(opt);
+            });
+            // Set the saved model value
+            document.getElementById('aiModelStep3').value = responseData.model || 'mistralai/mistral-small-4-119b-2603';
             document.getElementById('aiSystemPromptStep3').value = responseData.system_prompt || '';
             document.getElementById('aiTempStep3').value = responseData.temperature || 0.7;
             document.getElementById('aiMaxTokensStep3').value = responseData.max_tokens || 256;
@@ -1973,6 +2004,27 @@
         document.getElementById('buttonResponseContent').style.display = type === 'button' ? 'block' : 'none';
         document.getElementById('mediaResponseContent').style.display = type === 'media' ? 'block' : 'none';
         document.getElementById('aiResponseContent').style.display = type === 'ai' ? 'block' : 'none';
+        
+        // Populate AI model dropdown when AI response type is selected
+        if (type === 'ai') {
+            const aiModelSelect = document.getElementById('aiModelStep3');
+            // Only populate if empty
+            if (aiModelSelect.options.length === 0) {
+                aiModels.forEach(model => {
+                    const opt = document.createElement('option');
+                    if (typeof model === 'string') {
+                        opt.value = model;
+                        opt.textContent = model;
+                    } else {
+                        opt.value = model.id || model.model || model.name;
+                        opt.textContent = model.name || model.model || model.id;
+                    }
+                    aiModelSelect.appendChild(opt);
+                });
+                // Set default model
+                aiModelSelect.value = 'mistralai/mistral-small-4-119b-2603';
+            }
+        }
     });
 
     // Step navigation
@@ -1987,6 +2039,30 @@
         document.querySelectorAll('.step-indicator .line').forEach((el, idx) => {
             el.classList.toggle('done', idx < step - 1);
         });
+        
+        // Populate AI model dropdown when showing step 3 (Response)
+        if (step === 3) {
+            const responseType = document.querySelector('input[name="responseType"]:checked');
+            if (responseType && responseType.value === 'ai') {
+                const aiModelSelect = document.getElementById('aiModelStep3');
+                // Only populate if empty
+                if (aiModelSelect.options.length === 0) {
+                    aiModels.forEach(model => {
+                        const opt = document.createElement('option');
+                        if (typeof model === 'string') {
+                            opt.value = model;
+                            opt.textContent = model;
+                        } else {
+                            opt.value = model.id || model.model || model.name;
+                            opt.textContent = model.name || model.model || model.id;
+                        }
+                        aiModelSelect.appendChild(opt);
+                    });
+                    // Set default model
+                    aiModelSelect.value = 'mistralai/mistral-small-4-119b-2603';
+                }
+            }
+        }
         
         // Update review on step 5
         if (step === 5) updateReview();
@@ -2446,20 +2522,34 @@
         try {
             const res = await apiFetch('/api/ai/models');
             if (res && res.ok) {
-                aiModels = await res.json();
+                const data = await res.json();
+                // Handle both array response and object with models property
+                aiModels = Array.isArray(data) ? data : (data.models || []);
                 const select = document.getElementById('aiModelSelect');
                 select.innerHTML = '';
                 aiModels.forEach(model => {
                     const opt = document.createElement('option');
-                    opt.value = model.id || model;
-                    opt.textContent = model.name || model;
+                    // Handle string model names or objects with id/name
+                    if (typeof model === 'string') {
+                        opt.value = model;
+                        opt.textContent = model;
+                    } else {
+                        opt.value = model.id || model.model || model.name;
+                        opt.textContent = model.name || model.model || model.id;
+                    }
                     select.appendChild(opt);
                 });
             }
         } catch (err) {
             console.error('Failed to load AI models:', err);
-            // Fallback to default models if API fails
-            aiModels = ['claude-sonnet-4', 'claude-opus-4', 'gpt-4', 'gpt-3.5-turbo'];
+            // Fallback to default MistralAI models if API fails
+            aiModels = [
+                'mistralai/mistral-small-4-119b-2603',
+                'mistralai/mistral-large-3-675b-instruct-2512',
+                'mistralai/mistral-medium-3.5-128b',
+                'mistralai/ministral-14b-instruct-2512',
+                'mistralai/mixtral-8x7b-instruct-v0.1'
+            ];
             const select = document.getElementById('aiModelSelect');
             select.innerHTML = '';
             aiModels.forEach(model => {
