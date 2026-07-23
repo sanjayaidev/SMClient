@@ -72,10 +72,10 @@ async function fetchWithHostFallback(hosts, path, params) {
 // deprecates or renames metrics, so if the full batch is rejected with
 // "must be a valid insights metric" we retry metric-by-metric and just omit
 // whichever ones fail, rather than surfacing 0s for everything.
-async function fetchMetricsResilient(hosts, nodeId, metrics, accessToken, extraParams = {}) {
+async function fetchMetricsResilient(hosts, nodeId, metrics, accessToken, extraParams = {}, edge = 'insights') {
     const metricList = metrics.join(',');
     try {
-        const data = await fetchWithHostFallback(hosts, `/${nodeId}/insights`, {
+        const data = await fetchWithHostFallback(hosts, `/${nodeId}/${edge}`, {
             metric: metricList,
             access_token: accessToken,
             ...extraParams
@@ -88,7 +88,7 @@ async function fetchMetricsResilient(hosts, nodeId, metrics, accessToken, extraP
         const results = [];
         for (const metric of metrics) {
             try {
-                const data = await fetchWithHostFallback(hosts, `/${nodeId}/insights`, {
+                const data = await fetchWithHostFallback(hosts, `/${nodeId}/${edge}`, {
                     metric,
                     access_token: accessToken,
                     ...extraParams
@@ -229,29 +229,30 @@ module.exports = function insightsRouter(pool) {
                 // Threads tokens only work on graph.threads.net — never graph.facebook.com.
                 const threadsUserId = pageId; // This should be the threads user ID
                 const hosts = { primary: THREADS_BASE, fallback: null };
-                
-                // Fetch followers count from the user node (not insights)
-                let followersCount = 0;
-                try {
-                    const userInfo = await fetchGraph(buildUrl(THREADS_BASE, `/${threadsUserId}`, { 
-                        fields: 'followers_count', 
-                        access_token: accessToken 
-                    }));
-                    followersCount = userInfo.followers_count || 0;
-                } catch (e) {
-                    console.error('Error fetching Threads followers:', e.graphError?.message || e.message);
-                }
-                
-                // NOTE: Threads does NOT have an /insights endpoint like Facebook/Instagram.
-                // Metrics are fetched directly from the user node or computed from threads.
-                // The available metrics are: views, likes, replies, reposts, quotes
-                // These must be aggregated from individual threads, not fetched via /insights.
+
+                // GET /{threads-user-id}/threads_insights IS Threads' insights edge —
+                // note the name differs from IG/FB's plain "/insights", which is why
+                // this used to be missed. It returns views (time series), and
+                // likes/replies/reposts/quotes/followers_count (total_value) all in
+                // one call — no need to aggregate metrics from individual threads.
+                // followers_count via this metric does NOT support since/until.
+                const items = await fetchMetricsResilient(
+                    hosts,
+                    threadsUserId,
+                    ['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                    accessToken,
+                    { period: 'day' },
+                    'threads_insights'
+                );
+                const metrics = toMetricsMap(items);
+
                 responseData.data = {
-                    followers: followersCount,
-                    views: 0, // Views must be aggregated from individual threads
-                    likes: 0, // Likes must be aggregated from individual threads
-                    replies: 0, // Replies must be aggregated from individual threads
-                    reposts: 0 // Reposts must be aggregated from individual threads
+                    followers: metrics.followers_count || 0,
+                    views: metrics.views || 0,
+                    likes: metrics.likes || 0,
+                    replies: metrics.replies || 0,
+                    reposts: metrics.reposts || 0,
+                    quotes: metrics.quotes || 0
                 };
             }
 
