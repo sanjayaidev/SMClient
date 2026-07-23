@@ -655,11 +655,12 @@
 <!-- ===== SIDEBAR ===== -->
 <nav class="sidebar" id="sidebar">
     <div class="logo"><i class="fas fa-calendar-alt"></i> <span>Planner</span></div>
-    <div class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler</div>
-    <div class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections</div>
-    <div class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation</div>
-    <div class="nav-item" data-tab="profile"><i class="fas fa-user"></i> Profile</div>
-    <div class="nav-item" data-tab="settings"><i class="fas fa-sliders-h"></i> Settings</div>
+    <a href="/dashboard" class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler</a>
+    <a href="/dashboard" class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections</a>
+    <a href="/dashboard" class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation</a>
+    <a href="/insights" class="nav-item"><i class="fas fa-chart-line"></i> Insights</a>
+    <a href="/dashboard" class="nav-item" data-tab="profile"><i class="fas fa-user"></i> Profile</a>
+    <a href="/dashboard" class="nav-item" data-tab="settings"><i class="fas fa-sliders-h"></i> Settings</a>
     <div class="sidebar-footer">
         <div class="nav-item" id="logoutBtn" style="margin-bottom:8px;"><i class="fas fa-sign-out-alt"></i> Log out</div>
                 <a href="/about" style="color:var(--text-muted);font-size:11px;text-decoration:none;margin-right:8px;">About</a>
@@ -1149,7 +1150,7 @@
     // ============================================================
     const sidebar = document.getElementById('sidebar');
     const hamburger = document.getElementById('hamburgerBtn');
-    const navItems = document.querySelectorAll('.nav-item');
+    const navItems = document.querySelectorAll('.nav-item[data-tab]');
     const tabContents = {
         scheduler: document.getElementById('tab-scheduler'),
         connections: document.getElementById('tab-connections'),
@@ -1167,8 +1168,10 @@
     };
 
     navItems.forEach(item => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
             const tab = this.dataset.tab;
+            if (!tab || !tabContents[tab]) return;
             navItems.forEach(n => n.classList.remove('active'));
             this.classList.add('active');
             Object.keys(tabContents).forEach(key => {
