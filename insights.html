@@ -259,6 +259,13 @@
     display: flex; align-items: center; justify-content: center;
     color: var(--text-muted);
     font-size: 12px;
+    flex-shrink: 0;
+  }
+  .post-thumb-img {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
   }
   .post-text {
     font-size: 13px;
@@ -656,18 +663,28 @@
       return;
     }
 
-    tbody.innerHTML = posts.map(p => `
+    tbody.innerHTML = posts.map(p => {
+      // Render actual image if thumbnail URL is available, otherwise show camera icon
+      let thumbHtml;
+      if (p.thumbnail) {
+        thumbHtml = `<img src="${escapeHtml(p.thumbnail)}" alt="Post thumbnail" class="post-thumb-img">`;
+      } else {
+        thumbHtml = '<div class="post-thumb">📷</div>';
+      }
+      
+      return `
       <tr>
         <td>
           <div class="post-preview">
-            <div class="post-thumb">📷</div>
+            ${thumbHtml}
             <span class="post-text">${escapeHtml(p.caption || 'Untitled post')}</span>
           </div>
         </td>
         <td>${formatDate(p.date)}</td>
         ${metrics.map(m => `<td>${formatNumber(p[m])}</td>`).join('')}
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function formatDate(d) {
