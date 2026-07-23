@@ -53,7 +53,7 @@ async function publishPost(token, threadsUserId, { caption, mediaUrl }) {
 // used so the automation builder can target posts made outside this app.
 async function listRecentThreads(token, threadsUserId, limit = 25) {
   const res = await axios.get(`${BASE}/${threadsUserId}/threads`, {
-    params: { fields: 'id,text,timestamp,permalink,media_type', limit, access_token: token },
+    params: { fields: 'id,text,timestamp,permalink,media_type,threads_media{media_type,image_url,video_url}', limit, access_token: token },
   });
   return res.data.data || [];
 }

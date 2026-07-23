@@ -207,16 +207,29 @@ module.exports = function insightsRouter(pool) {
                 // Threads tokens only work on graph.threads.net — never graph.facebook.com.
                 const threadsUserId = pageId; // This should be the threads user ID
                 const hosts = { primary: THREADS_BASE, fallback: null };
+                
+                // Fetch followers count from the user node (not insights)
+                let followersCount = 0;
+                try {
+                    const userInfo = await fetchGraph(buildUrl(THREADS_BASE, `/${threadsUserId}`, { 
+                        fields: 'followers_count', 
+                        access_token: accessToken 
+                    }));
+                    followersCount = userInfo.followers_count || 0;
+                } catch (e) {
+                    console.error('Error fetching Threads followers:', e.graphError?.message || e.message);
+                }
+                
                 const items = await fetchMetricsResilient(
                     hosts,
                     threadsUserId,
-                    ['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                    ['views', 'likes', 'replies', 'reposts', 'quotes'],
                     accessToken
                 );
                 const metrics = toMetricsMap(items);
 
                 responseData.data = {
-                    followers: metrics.followers_count || 0,
+                    followers: followersCount,
                     views: metrics.views || 0,
                     likes: metrics.likes || 0,
                     replies: metrics.replies || 0,
@@ -305,24 +318,36 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'threads') {
+                // Fetch Threads with media information
+                // Note: threads_media is the edge that contains media attachments for each thread
                 const data = await fetchGraph(buildUrl(THREADS_BASE, `/${pageId}/threads`, {
-                    fields: 'id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count',
+                    fields: 'id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count,threads_media{media_type,image_url,video_url}',
                     limit: 25,
                     access_token: accessToken
                 }));
 
-                responseData.data = (data.data || []).map(post => ({
-                    id: post.id,
-                    caption: post.text || '',
-                    message: post.text || '',
-                    date: post.timestamp,
-                    link: post.permalink_url,
-                    likes: post.like_count || 0,
-                    comments: post.reply_count || 0,
-                    replies: post.reply_count || 0,
-                    reposts: post.repost_count || 0,
-                    quotes: post.quote_count || 0
-                }));
+                responseData.data = (data.data || []).map(post => {
+                    // Extract first media URL if available
+                    let thumbnail = null;
+                    if (post.threads_media && post.threads_media.length > 0) {
+                        const media = post.threads_media[0];
+                        thumbnail = media.image_url || media.video_url || null;
+                    }
+                    
+                    return {
+                        id: post.id,
+                        caption: post.text || '',
+                        message: post.text || '',
+                        date: post.timestamp,
+                        thumbnail: thumbnail,
+                        link: post.permalink_url,
+                        likes: post.like_count || 0,
+                        comments: post.reply_count || 0,
+                        replies: post.reply_count || 0,
+                        reposts: post.repost_count || 0,
+                        quotes: post.quote_count || 0
+                    };
+                });
             }
 
             res.json(responseData);
