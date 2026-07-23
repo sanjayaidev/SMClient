@@ -16,6 +16,7 @@ const commentsRouter = require('./routes/comments');
 const authRouter = require('./routes/auth');
 const mediaRouter = require('./routes/media');
 const insightsRouter = require('./routes/insights');
+const aiRouter = require('./routes/ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -68,6 +69,7 @@ app.use('/api/automations', requireAuth, automationsRouter(pool));
 app.use('/api/comments', requireAuth, commentsRouter(pool));
 app.use('/api/media', requireAuth, mediaRouter.router(pool));
 app.use('/api/insights', requireAuth, insightsRouter(pool));
+app.use('/api/ai', aiRouter(pool));
 
 // --- Static pages (unchanged) ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
