@@ -46,9 +46,10 @@ async function postWithFallback(hosts, path, bodyParams, token) {
       lastError = err;
       const responseStatus = err.response?.status;
       const errorCode = err.response?.data?.error?.code;
-      // Only try fallback for auth/capability errors (#3, #100, 401, 403)
+      // Only try fallback for auth/capability errors (#3, #100, #190, 401, 403)
+      // Error 190 = Invalid OAuth access token (may be wrong host/token format)
       // For other errors (bad params, not found, etc.) the host won't help
-      if (errorCode !== 3 && errorCode !== 100 && responseStatus !== 401 && responseStatus !== 403) {
+      if (errorCode !== 3 && errorCode !== 100 && errorCode !== 190 && responseStatus !== 401 && responseStatus !== 403) {
         break;
       }
       console.log(`⚠️  Instagram API call failed on ${url} with error ${errorCode || responseStatus}, trying fallback host...`);
@@ -70,7 +71,7 @@ async function getWithFallback(hosts, path, params, token) {
       lastError = err;
       const responseStatus = err.response?.status;
       const errorCode = err.response?.data?.error?.code;
-      if (errorCode !== 3 && errorCode !== 100 && responseStatus !== 401 && responseStatus !== 403) {
+      if (errorCode !== 3 && errorCode !== 100 && errorCode !== 190 && responseStatus !== 401 && responseStatus !== 403) {
         break;
       }
       console.log(`⚠️  Instagram API call failed on ${url} with error ${errorCode || responseStatus}, trying fallback host...`);
