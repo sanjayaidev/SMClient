@@ -1329,7 +1329,7 @@
                     platforms.forEach(p => {
                         const span = document.createElement('span');
                         span.className = `picon ${PLATFORM_CLASS[p] || ''}`;
-                        span.textContent = PLATFORM_ICONS[p] || p;
+                        span.innerHTML = PLATFORM_ICONS[p] || p;
                         icons.appendChild(span);
                     });
                     cell.appendChild(icons);
@@ -1363,7 +1363,8 @@
                 d.setDate(d.getDate() + i);
                 const cell = document.createElement('div');
                 cell.className = 'cal-cell';
-                cell.innerHTML = `<div class="cal-date"><span>${d.getDate()}</span></div><div class="cal-platform-icons">${getDayPlatforms(d.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('')}</div>`;
+                const iconsHtml = getDayPlatforms(d.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('');
+                cell.innerHTML = `<div class="cal-date"><span>${d.getDate()}</span></div><div class="cal-platform-icons">${iconsHtml}</div>`;
                 weekGrid.appendChild(cell);
             }
             grid.appendChild(weekGrid);
@@ -1375,7 +1376,8 @@
             dayGrid.className = 'month-grid';
             const cell = document.createElement('div');
             cell.className = 'cal-cell';
-            cell.innerHTML = `<div class="cal-date"><span>${calDate.getDate()}</span></div><div class="cal-platform-icons">${getDayPlatforms(calDate.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('')}</div>`;
+            const iconsHtml = getDayPlatforms(calDate.getDate()).map(p => `<span class="picon ${PLATFORM_CLASS[p]||''}">${PLATFORM_ICONS[p]||p}</span>`).join('');
+            cell.innerHTML = `<div class="cal-date"><span>${calDate.getDate()}</span></div><div class="cal-platform-icons">${iconsHtml}</div>`;
             dayGrid.appendChild(cell);
             grid.appendChild(dayGrid);
             renderDayDetail(panel);
