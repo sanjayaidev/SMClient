@@ -2,24 +2,39 @@ const express = require('express');
 const { requireAuth } = require('../lib/auth');
 const { decrypt } = require('../lib/crypto');
 
-// Keep this in sync with routes/connections.js so insights hit the same
-// Graph API version the tokens were issued/used against.
+// Keep in sync with routes/connections.js / platforms/*.js — different
+// platforms issue tokens for different hosts and a token from one is NOT
+// valid on another. Mixing these up is what produces Graph's
+// "(#100) Cannot parse access token" error, since the host doesn't
+// recognize the token format/issuer at all (this is unrelated to which
+// app id/secret was used to obtain the token).
 const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v21.0';
+const THREADS_VERSION = process.env.THREADS_VERSION || 'v1.0';
+const FB_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const IG_BASE = 'https://graph.instagram.com';
+const THREADS_BASE = `https://graph.threads.net/${THREADS_VERSION}`;
 
-// Build a Graph API URL with properly encoded params.
-// IMPORTANT: access tokens routinely contain characters like +, /, =, & that
-// are NOT safe to paste into a URL via template-string interpolation — doing
-// so can truncate or corrupt the token and Graph responds with
-// "(#100) Cannot parse access token". URLSearchParams handles this correctly,
-// the same way axios's `params` option (used in platforms/facebook.js and
-// platforms/instagram.js) already does.
-function graphUrl(path, params) {
-    const qs = new URLSearchParams(params).toString();
-    return `https://graph.facebook.com/${GRAPH_VERSION}${path}?${qs}`;
+// Instagram can be connected two ways (see platforms/instagram.js):
+//  1. Facebook Login for Business -> page_id is set -> token only works on graph.facebook.com
+//  2. Direct Instagram Login       -> page_id is null -> token only works on graph.instagram.com
+// Mirrors the exact same logic platforms/instagram.js uses for posting/replies/DMs.
+function instagramHosts(connection) {
+    const primary = connection.page_id ? FB_BASE : IG_BASE;
+    const fallback = connection.page_id ? IG_BASE : FB_BASE;
+    return { primary, fallback };
 }
 
-// Helper: call the Graph API and normalize errors so callers always know
-// whether they got real data or a failure, instead of silently getting 0s.
+// Build a URL with properly encoded params. Access tokens routinely contain
+// characters like +, /, =, & that are NOT safe to paste into a URL via plain
+// template-string interpolation — doing so can truncate/corrupt the token
+// and Graph responds with "(#100) Cannot parse access token" even when the
+// host and token are otherwise correct. URLSearchParams (like axios's
+// `params` option used elsewhere in this codebase) handles this correctly.
+function buildUrl(base, path, params) {
+    const qs = new URLSearchParams(params).toString();
+    return `${base}${path}?${qs}`;
+}
+
 async function fetchGraph(url) {
     const response = await fetch(url);
     const data = await response.json();
@@ -34,34 +49,50 @@ async function fetchGraph(url) {
     return data;
 }
 
+// Try the primary host, and fall back to the secondary host only for
+// auth/host-mismatch style errors (matches the codes platforms/instagram.js
+// already treats as "try the other host": #3, #100, #190, 401, 403).
+async function fetchWithHostFallback(hosts, path, params) {
+    const isHostMismatchError = (err) => {
+        const code = err.graphError?.code;
+        return code === 3 || code === 100 || code === 190 || err.status === 401 || err.status === 403;
+    };
+
+    try {
+        return await fetchGraph(buildUrl(hosts.primary, path, params));
+    } catch (err) {
+        if (!hosts.fallback || !isHostMismatchError(err)) throw err;
+        console.log(`Insights call failed on ${hosts.primary}${path} (code ${err.graphError?.code}), retrying on ${hosts.fallback}...`);
+        return fetchGraph(buildUrl(hosts.fallback, path, params));
+    }
+}
+
 // Fetch a set of insights metrics, tolerating individual invalid/unavailable
 // metric names instead of failing the whole request. Meta frequently
-// deprecates or renames metrics (see notes below), so if the full batch is
-// rejected with "must be a valid insights metric" we retry metric-by-metric
-// and just omit whichever ones fail, rather than surfacing 0s for everything.
-async function fetchMetricsResilient(nodeId, metrics, accessToken, extraParams = {}) {
+// deprecates or renames metrics, so if the full batch is rejected with
+// "must be a valid insights metric" we retry metric-by-metric and just omit
+// whichever ones fail, rather than surfacing 0s for everything.
+async function fetchMetricsResilient(hosts, nodeId, metrics, accessToken, extraParams = {}) {
     const metricList = metrics.join(',');
     try {
-        const data = await fetchGraph(graphUrl(`/${nodeId}/insights`, {
+        const data = await fetchWithHostFallback(hosts, `/${nodeId}/insights`, {
             metric: metricList,
             access_token: accessToken,
             ...extraParams
-        }));
+        });
         return data.data || [];
     } catch (err) {
-        // If it's not a metric-validity problem, don't mask it — let the caller
-        // see the real error (e.g. expired token, missing permission).
-        const isInvalidMetric = err.graphError?.code === 100;
+        const isInvalidMetric = err.graphError?.code === 100 && /insights metric/i.test(err.graphError?.message || '');
         if (!isInvalidMetric) throw err;
 
         const results = [];
         for (const metric of metrics) {
             try {
-                const data = await fetchGraph(graphUrl(`/${nodeId}/insights`, {
+                const data = await fetchWithHostFallback(hosts, `/${nodeId}/insights`, {
                     metric,
                     access_token: accessToken,
                     ...extraParams
-                }));
+                });
                 results.push(...(data.data || []));
             } catch (metricErr) {
                 console.error(`Skipping invalid/unsupported metric "${metric}" for ${nodeId}:`, metricErr.graphError?.message || metricErr.message);
@@ -111,10 +142,8 @@ module.exports = function insightsRouter(pool) {
 
             const connection = connectionsResult.rows[0];
             const pageId = connection.account_id || connection.page_id;
-            // BUG FIX: access_token is stored encrypted at rest (see lib/crypto.js).
-            // Every other route (posts.js, media.js, comments.js) decrypts it before
-            // calling Graph; this route was sending the raw ciphertext as the token,
-            // so every Graph API call failed auth and silently fell through to 0s.
+            // access_token is stored encrypted at rest (see lib/crypto.js) — must
+            // decrypt before sending to Graph, same as posts.js/media.js/comments.js.
             const accessToken = decrypt(connection.access_token);
 
             let responseData = { data: {} };
@@ -125,7 +154,9 @@ module.exports = function insightsRouter(pool) {
                 // NOTE: 'impressions' was retired by Meta for IG accounts created
                 // after Jul 2, 2024 (and is being sunset generally) — 'views' is
                 // the supported replacement metric.
+                const hosts = instagramHosts(connection);
                 const items = await fetchMetricsResilient(
+                    hosts,
                     pageId,
                     ['follower_count', 'reach', 'views', 'accounts_engaged'],
                     accessToken,
@@ -140,14 +171,16 @@ module.exports = function insightsRouter(pool) {
                     engagement: metrics.accounts_engaged || 0
                 };
             } else if (platform === 'facebook') {
-                // Facebook Page Insights.
+                // Facebook Page Insights (always graph.facebook.com — no fallback needed).
                 // NOTE: page_impressions_unique / page_posts_impressions_unique were
                 // deprecated in the v20+ era, and Meta deprecated the plain
                 // `page_impressions` metric too as of June 15, 2026 (impressions ->
                 // views across the Page Insights API). page_views is the current
                 // supported metric — verify against Graph API Explorer periodically,
                 // as Meta has been iterating on these names throughout 2025-2026.
+                const hosts = { primary: FB_BASE, fallback: null };
                 const items = await fetchMetricsResilient(
+                    hosts,
                     pageId,
                     ['page_views', 'page_post_engagements'],
                     accessToken,
@@ -158,9 +191,7 @@ module.exports = function insightsRouter(pool) {
                 // fan_count lives on the Page node itself, not the insights edge.
                 let fanCount = 0;
                 try {
-                    const pageInfo = await fetchGraph(
-                        graphUrl(`/${pageId}`, { fields: 'fan_count', access_token: accessToken })
-                    );
+                    const pageInfo = await fetchGraph(buildUrl(FB_BASE, `/${pageId}`, { fields: 'fan_count', access_token: accessToken }));
                     if (typeof pageInfo.fan_count === 'number') fanCount = pageInfo.fan_count;
                 } catch (e) {
                     console.error('Error fetching page fan_count:', e.graphError?.message || e.message);
@@ -173,11 +204,11 @@ module.exports = function insightsRouter(pool) {
                     engagement: metrics.page_post_engagements || 0
                 };
             } else if (platform === 'threads') {
-                // Threads account-level insights. Uses the same /insights edge as
-                // Facebook/Instagram (the threads-specific /threads_insights edge
-                // name was unconfirmed and is not used here).
+                // Threads tokens only work on graph.threads.net — never graph.facebook.com.
                 const threadsUserId = pageId; // This should be the threads user ID
+                const hosts = { primary: THREADS_BASE, fallback: null };
                 const items = await fetchMetricsResilient(
+                    hosts,
                     threadsUserId,
                     ['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
                     accessToken
@@ -196,8 +227,8 @@ module.exports = function insightsRouter(pool) {
             res.json(responseData);
         } catch (error) {
             console.error('Error fetching account insights:', error.graphError || error);
-            // Surface the real reason (expired token, missing permission, etc.)
-            // instead of masking it as a generic 500 with no detail.
+            // Surface the real reason (expired token, missing permission, wrong
+            // host, etc.) instead of masking it as a generic 500 with no detail.
             const status = error.graphError ? 502 : 500;
             res.status(status).json({
                 error: 'Failed to fetch insights',
@@ -229,18 +260,18 @@ module.exports = function insightsRouter(pool) {
 
             const connection = connectionsResult.rows[0];
             const pageId = connection.account_id || connection.page_id;
-            // BUG FIX: decrypt the stored token (see note in /account above).
             const accessToken = decrypt(connection.access_token);
 
             let responseData = { data: [] };
 
             // Fetch posts with insights based on platform
             if (platform === 'instagram') {
-                const data = await fetchGraph(graphUrl(`/${pageId}/media`, {
+                const hosts = instagramHosts(connection);
+                const data = await fetchWithHostFallback(hosts, `/${pageId}/media`, {
                     fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count',
                     limit: 25,
                     access_token: accessToken
-                }));
+                });
 
                 responseData.data = (data.data || []).map(post => ({
                     id: post.id,
@@ -255,7 +286,7 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'facebook') {
-                const data = await fetchGraph(graphUrl(`/${pageId}/posts`, {
+                const data = await fetchGraph(buildUrl(FB_BASE, `/${pageId}/posts`, {
                     fields: 'id,message,created_time,full_picture,permalink_url,reactions.summary(true),comments.summary(true),shares',
                     limit: 25,
                     access_token: accessToken
@@ -274,7 +305,7 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'threads') {
-                const data = await fetchGraph(graphUrl(`/${pageId}/threads`, {
+                const data = await fetchGraph(buildUrl(THREADS_BASE, `/${pageId}/threads`, {
                     fields: 'id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count',
                     limit: 25,
                     access_token: accessToken
