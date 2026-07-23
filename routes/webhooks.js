@@ -806,17 +806,52 @@ function router(pool) {
     try { payload = JSON.parse(req.body.toString('utf8')); } catch { return; }
 
     const platform = 'threads';
-    for (const entry of payload.entry || []) {
-      for (const change of entry.changes || []) {
-        if (change.field !== 'replies' && change.field !== 'comments') {
-          console.log(`⚠️  Skipping Threads change with field: ${change.field}`);
-          addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
-          continue;
+
+    // Threads webhooks arrive in one of two shapes depending on topic:
+    //  - "moderate" topic (what Threads actually sends for comment/reply
+    //    events): { topic, target_id, values: [{ value: {...}, uid? }] }
+    //  - Legacy Graph-API-style shape some docs describe:
+    //    { entry: [{ id, changes: [{ field, value }] }] }
+    // The code previously only handled the legacy shape via `payload.entry`,
+    // which is undefined for real Threads payloads — so the loop below ran
+    // zero times and every Threads comment was silently dropped before any
+    // matching/logging happened. Normalize both into a flat item list.
+    const items = [];
+
+    if (Array.isArray(payload.values)) {
+      for (const item of payload.values) {
+        const value = item.value || {};
+        items.push({
+          text: value.text,
+          replyId: value.id,
+          // target_id is the post/thread being replied to; prefer the more
+          // specific root_post/replied_to id from the payload when present.
+          mediaId: value.root_post?.id || value.replied_to?.id || payload.target_id,
+          // has_uid_field indicates whether `uid` is populated; fall back to
+          // the root post's owner as the account this event belongs to.
+          accountId: item.uid || value.root_post?.owner_id || null
+        });
+      }
+    } else {
+      for (const entry of payload.entry || []) {
+        for (const change of entry.changes || []) {
+          if (change.field !== 'replies' && change.field !== 'comments') {
+            console.log(`⚠️  Skipping Threads change with field: ${change.field}`);
+            addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
+            continue;
+          }
+          const value = change.value || {};
+          items.push({
+            text: value.text,
+            replyId: value.id,
+            mediaId: value.media?.id || entry.id,
+            accountId: entry.id
+          });
         }
-        const value = change.value;
-        const replyId = value.id;
-        const text = value.text;
-        const mediaId = value.media?.id || entry.id;
+      }
+    }
+
+    for (const { text, replyId, mediaId, accountId } of items) {
         if (await alreadyProcessed(`threads_reply:${replyId}`)) continue;
 
         console.log(`🔔 Webhook trigger: ${platform}/comment - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
@@ -827,7 +862,7 @@ function router(pool) {
           text,
           replyId,
           mediaId,
-          accountId: entry.id
+          accountId
         });
 
         const automations = await getActiveAutomations();
@@ -841,7 +876,7 @@ function router(pool) {
             triggerText: text,
             mediaId,
             senderId: null,
-            accountId: entry.id,
+            accountId,
             automationId: null,
             automationName: null,
             responseType: null,
@@ -865,7 +900,7 @@ function router(pool) {
             triggerText: text,
             mediaId,
             senderId: null,
-            accountId: entry.id,
+            accountId,
             automationId: match.id,
             automationName: match.name,
             responseType: null,
@@ -877,7 +912,7 @@ function router(pool) {
           continue;
         }
 
-        const conn = await getConnection('threads', entry.id);
+        const conn = await getConnection('threads', accountId);
         if (!conn) { 
           console.error('No connected Threads account to reply with'); 
           await logAutomationEvent(pool, {
@@ -886,7 +921,7 @@ function router(pool) {
             triggerText: text,
             mediaId,
             senderId: null,
-            accountId: entry.id,
+            accountId,
             automationId: match.id,
             automationName: match.name,
             responseType: responseResult.type,
@@ -907,7 +942,7 @@ function router(pool) {
             triggerText: text,
             mediaId,
             senderId: null,
-            accountId: entry.id,
+            accountId,
             automationId: match.id,
             automationName: match.name,
             responseType: responseResult.type,
@@ -925,7 +960,7 @@ function router(pool) {
             triggerText: text,
             mediaId,
             senderId: null,
-            accountId: entry.id,
+            accountId,
             automationId: match.id,
             automationName: match.name,
             responseType: responseResult?.type,
@@ -935,7 +970,6 @@ function router(pool) {
             errorMessage: errorMsg
           });
         }
-      }
     }
   });
 
