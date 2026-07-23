@@ -8,7 +8,7 @@ const { decrypt } = require('../lib/crypto');
 // "(#100) Cannot parse access token" error, since the host doesn't
 // recognize the token format/issuer at all (this is unrelated to which
 // app id/secret was used to obtain the token).
-const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v21.0';
+const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v25.0';
 const THREADS_VERSION = process.env.THREADS_VERSION || 'v1.0';
 const FB_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const IG_BASE = 'https://graph.instagram.com';
@@ -150,22 +150,44 @@ module.exports = function insightsRouter(pool) {
 
             // Fetch insights based on platform
             if (platform === 'instagram') {
-                // Instagram Business API insights.
-                // NOTE: 'impressions' was retired by Meta for IG accounts created
-                // after Jul 2, 2024 (and is being sunset generally) — 'views' is
-                // the supported replacement metric.
                 const hosts = instagramHosts(connection);
+
+                // followers_count/media_count are fields on the IG User node itself
+                // (GET /{IG_USER_ID}?fields=...) — NOT part of the /insights edge.
+                // Using this instead of the 'follower_count' insights metric because
+                // that metric is a day-by-day time series intended for trend charts,
+                // requires 100+ followers to return data at all, and only defaults to
+                // a 2-day range — none of which fit a simple "current followers" read.
+                let followers = 0;
+                let mediaCount = 0;
+                try {
+                    const userInfo = await fetchWithHostFallback(hosts, `/${pageId}`, {
+                        fields: 'followers_count,media_count',
+                        access_token: accessToken
+                    });
+                    followers = userInfo.followers_count || 0;
+                    mediaCount = userInfo.media_count || 0;
+                } catch (e) {
+                    console.error('Error fetching Instagram followers_count:', e.graphError?.message || e.message);
+                }
+
+                // reach/views/accounts_engaged are genuine /insights-only metrics
+                // (no equivalent field on the user node), so those still go through
+                // the insights edge. NOTE: 'impressions' was retired by Meta for IG
+                // accounts created after Jul 2, 2024 (and is being sunset generally)
+                // — 'views' is the supported replacement metric.
                 const items = await fetchMetricsResilient(
                     hosts,
                     pageId,
-                    ['follower_count', 'reach', 'views', 'accounts_engaged'],
+                    ['reach', 'views', 'accounts_engaged'],
                     accessToken,
                     { period: 'day' }
                 );
                 const metrics = toMetricsMap(items);
 
                 responseData.data = {
-                    followers: metrics.follower_count || 0,
+                    followers,
+                    mediaCount,
                     reach: metrics.reach || 0,
                     impressions: metrics.views || 0,
                     engagement: metrics.accounts_engaged || 0
