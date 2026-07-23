@@ -26,10 +26,25 @@ async function publishPost(token, pageId, { caption, mediaUrl }) {
 // the automation builder can target posts made outside this app.
 async function listRecentPosts(token, pageId, limit = 25) {
   const res = await get(`${BASE}/${pageId}/posts`, {
-    fields: 'id,message,created_time,permalink_url,full_picture',
+    fields: 'id,message,created_time,permalink_url,attachments{media{image,image_type,source},type,url}',
     limit,
   }, token);
-  return res.data || [];
+  return (res.data || []).map(post => {
+    // Extract thumbnail from attachments if available
+    let thumbnail = null;
+    if (post.attachments && post.attachments.data && post.attachments.data.length > 0) {
+      const attachment = post.attachments.data[0];
+      if (attachment.media?.image) {
+        thumbnail = attachment.media.image.src || attachment.media.source;
+      } else if (attachment.url) {
+        thumbnail = attachment.url;
+      }
+    }
+    return {
+      ...post,
+      thumbnail,
+    };
+  });
 }
 
 async function replyToComment(token, objectId, message) {

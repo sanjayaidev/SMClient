@@ -299,24 +299,41 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'facebook') {
+                // Fetch Facebook posts with media attachments.
+                // Per Meta's Graph API docs, use the `attachments` edge to get
+                // media URLs (image/video) for each post — `full_picture` is
+                // deprecated/unreliable for many post types.
                 const data = await fetchGraph(buildUrl(FB_BASE, `/${pageId}/posts`, {
-                    fields: 'id,message,created_time,full_picture,permalink_url,reactions.summary(true),comments.summary(true),shares',
+                    fields: 'id,message,created_time,permalink_url,reactions.summary(true),comments.summary(true),shares,attachments{media{image,image_type,source},type,url}',
                     limit: 25,
                     access_token: accessToken
                 }));
 
-                responseData.data = (data.data || []).map(post => ({
-                    id: post.id,
-                    caption: post.message || '',
-                    message: post.message || '',
-                    date: post.created_time,
-                    thumbnail: post.full_picture,
-                    link: post.permalink_url,
-                    likes: post.reactions?.summary?.total_count || 0,
-                    comments: post.comments?.summary?.total_count || 0,
-                    shares: post.shares?.count || 0,
-                    reach: 0
-                }));
+                responseData.data = (data.data || []).map(post => {
+                    // Extract thumbnail from attachments if available
+                    let thumbnail = null;
+                    if (post.attachments && post.attachments.data && post.attachments.data.length > 0) {
+                        const attachment = post.attachments.data[0];
+                        if (attachment.media?.image) {
+                            thumbnail = attachment.media.image.src || attachment.media.source;
+                        } else if (attachment.url) {
+                            thumbnail = attachment.url;
+                        }
+                    }
+                    
+                    return {
+                        id: post.id,
+                        caption: post.message || '',
+                        message: post.message || '',
+                        date: post.created_time,
+                        thumbnail: thumbnail,
+                        link: post.permalink_url,
+                        likes: post.reactions?.summary?.total_count || 0,
+                        comments: post.comments?.summary?.total_count || 0,
+                        shares: post.shares?.count || 0,
+                        reach: 0
+                    };
+                });
             } else if (platform === 'threads') {
                 // Fetch Threads with media information
                 // Note: threads_media is the edge that contains media attachments for each thread

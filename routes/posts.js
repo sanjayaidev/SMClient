@@ -49,7 +49,7 @@ function router(pool) {
               caption: p.message || '',
               timestamp: p.created_time,
               permalink: p.permalink_url,
-              thumbnail: p.full_picture,
+              thumbnail: p.thumbnail || null,
             }));
           } else if (platform === 'threads') {
             items = (await threads.listRecentThreads(token, conn.account_id)).map((t) => ({
