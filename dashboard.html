@@ -723,7 +723,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-success bg-opacity-10 text-success rounded-circle p-3 me-3">
-                                <i class="fas fa-file-excel fa-lg"></i>
+                                <img src="/assets/logos/sheets.png" alt="Google Sheets" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fas fa-file-excel fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Google Sheets</h5>
@@ -745,7 +745,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-danger bg-opacity-10 text-danger rounded-circle p-3 me-3">
-                                <i class="fab fa-google-drive fa-lg"></i>
+                                <img src="/assets/logos/drive.webp" alt="Google Drive" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-google-drive fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Google Drive</h5>
@@ -905,7 +905,7 @@
                             </div>
                             <div class="auto-type-card" data-platform="threads">
                                 <input type="checkbox" class="platform-checkbox" style="position:absolute;top:10px;right:10px;width:16px;height:16px;pointer-events:none;">
-                                <div class="icon"><i class="fas fa-at"></i></div>
+                                <div class="icon"><img src="/assets/logos/Threads.png" alt="Threads" style="width:24px;height:24px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fas fa-at" style="display:none;"></i></div>
                                 <h4>Threads</h4>
                                 <p>Replies on Threads</p>
                             </div>
@@ -1869,13 +1869,13 @@
         
         selectedPlatforms.forEach(platform => {
             const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
-            const platformIcon = platform === 'facebook' ? 'fa-facebook-f' : platform === 'instagram' ? 'fa-instagram' : 'fa-at';
+            const platformIcon = platform === 'facebook' ? '/assets/logos/facebook.webp' : platform === 'instagram' ? '/assets/logos/insta.webp' : '/assets/logos/Threads.png';
             const localPosts = (postsByPlatform[platform] || []).sort((a, b) => new Date(b.scheduled_date || 0) - new Date(a.scheduled_date || 0));
             const remotePosts = (remoteByPlatform[platform] || []).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
             
             html += `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fafbfc;">
                 <div style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                    <i class="fab ${platformIcon}" style="color:var(--${platform === 'facebook' ? 'fb' : platform === 'instagram' ? 'ig' : 'threads'});"></i>
+                    <img src="${platformIcon}" alt="${platformLabel}" style="width:20px;height:20px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';"><i class="fab ${platform === 'facebook' ? 'fa-facebook-f' : platform === 'instagram' ? 'fa-instagram' : 'fa-at'}" style="display:none;color:var(--${platform === 'facebook' ? 'fb' : platform === 'instagram' ? 'ig' : 'threads'});"></i>
                     ${platformLabel} Posts <span style="font-size:10px;color:var(--text-muted);">(select one)</span>
                 </div>
                 <div style="max-height:200px;overflow-y:auto;">`;
@@ -2341,12 +2341,12 @@
     // CONNECTIONS: LOAD & RENDER
     // ============================================================
     const PLATFORM_META = {
-        google_sheets: { name: 'Google Sheets', icon: 'fas fa-file-excel', color: '#0f9d58' },
-        google_drive: { name: 'Google Drive', icon: 'fab fa-google-drive', color: '#4285f4' },
-        facebook: { name: 'Facebook', icon: 'fab fa-facebook-f', color: 'var(--fb)' },
-        instagram: { name: 'Instagram', icon: 'fab fa-instagram', color: 'var(--ig)' },
-        threads: { name: 'Threads', icon: 'fas fa-at', color: 'var(--threads)' },
-        linkedin: { name: 'LinkedIn', icon: 'fab fa-linkedin-in', color: 'var(--li)' }
+        google_sheets: { name: 'Google Sheets', icon: '/assets/logos/sheets.png', color: '#0f9d58' },
+        google_drive: { name: 'Google Drive', icon: '/assets/logos/drive.webp', color: '#4285f4' },
+        facebook: { name: 'Facebook', icon: '/assets/logos/facebook.webp', color: 'var(--fb)' },
+        instagram: { name: 'Instagram', icon: '/assets/logos/insta.webp', color: 'var(--ig)' },
+        threads: { name: 'Threads', icon: '/assets/logos/Threads.png', color: 'var(--threads)' },
+        linkedin: { name: 'LinkedIn', icon: '/assets/logos/linkedin.webp', color: 'var(--li)' }
     };
 
     async function loadConnections() {
