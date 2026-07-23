@@ -28,7 +28,7 @@ module.exports = function insightsRouter(pool) {
             }
 
             const connection = connectionsResult.rows[0];
-            const pageId = connection.page_id || connection.instagram_id || connection.threads_id;
+            const pageId = connection.account_id || connection.page_id;
             const accessToken = connection.access_token;
 
             let responseData = { data: {} };
@@ -133,7 +133,7 @@ module.exports = function insightsRouter(pool) {
             }
 
             const connection = connectionsResult.rows[0];
-            const pageId = connection.page_id || connection.instagram_id || connection.threads_id;
+            const pageId = connection.account_id || connection.page_id;
             const accessToken = connection.access_token;
 
             let responseData = { data: [] };
