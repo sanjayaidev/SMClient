@@ -241,11 +241,45 @@ function router(pool) {
       );
       return res.rows[0] || null;
     }
-    const res = await pool.query(
+    
+    // Primary lookup: match by account_id or page_id
+    let res = await pool.query(
       'SELECT * FROM connections WHERE platform=$1 AND (account_id=$2 OR page_id=$2) AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
       [platform, accountId]
     );
-    return res.rows[0] || null;
+    if (res.rows[0]) {
+      return res.rows[0];
+    }
+    
+    // Fallback for Instagram: When connected via Direct Instagram Login,
+    // the webhook may send the user ID from the Instagram Business Account
+    // which might differ from stored account_id. Try finding any connected
+    // Instagram account for this platform as a fallback.
+    if (platform === 'instagram') {
+      res = await pool.query(
+        'SELECT * FROM connections WHERE platform=$1 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
+        [platform]
+      );
+      if (res.rows[0]) {
+        console.log(`🔄 Instagram connection fallback: using account ${res.rows[0].account_id} (webhook sent ${accountId})`);
+        return res.rows[0];
+      }
+    }
+    
+    // Additional fallback for Facebook: try matching Instagram connections
+    // since FB and IG can share the same Page access token
+    if (platform === 'facebook') {
+      res = await pool.query(
+        'SELECT * FROM connections WHERE platform=$1 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
+        ['instagram']
+      );
+      if (res.rows[0]) {
+        console.log(`🔄 Facebook connection fallback: using Instagram account ${res.rows[0].account_id}`);
+        return res.rows[0];
+      }
+    }
+    
+    return null;
   }
   async function getActiveAutomations() {
     const res = await pool.query(
@@ -411,25 +445,34 @@ function router(pool) {
       
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
 
-      const conn = await getConnection(platform, accountId);
+      let conn = await getConnection(platform, accountId);
       if (!conn) { 
-        console.error(`No connected ${platform} account to reply with`); 
-        await logAutomationEvent(pool, {
-          platform,
-          triggerType,
-          triggerText: text,
-          mediaId,
-          senderId,
-          accountId,
-          automationId: match.id,
-          automationName: match.name,
-          responseType: null,
-          responseContent: null,
-          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
-          success: false,
-          errorMessage: `No connected ${platform} account`
-        });
-        return; 
+        // Fallback: try finding any connected account for this platform
+        // This handles cases where webhook sends different account IDs
+        // than what's stored in the connections table
+        console.log(`⚠️  No connection found for ${platform}/${accountId}, trying fallback lookup...`);
+        conn = await getConnection(platform, null);
+        
+        if (!conn) {
+          console.error(`No connected ${platform} account to reply with`); 
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId,
+            senderId,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: null,
+            responseContent: null,
+            replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
+            success: false,
+            errorMessage: `No connected ${platform} account`
+          });
+          return;
+        }
+        console.log(`🔄 Using fallback ${platform} connection: ${conn.account_id}`);
       }
       const token = decrypt(conn.access_token);
 
@@ -642,25 +685,34 @@ function router(pool) {
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       addToDebugLog({ platform, event: 'automation_matched', automationId: match.id, automationName: match.name, triggerType });
 
-      const conn = await getConnection(platform, accountId);
+      let conn = await getConnection(platform, accountId);
       if (!conn) { 
-        console.error(`No connected ${platform} account to reply with`); 
-        await logAutomationEvent(pool, {
-          platform,
-          triggerType,
-          triggerText: text,
-          mediaId,
-          senderId,
-          accountId,
-          automationId: match.id,
-          automationName: match.name,
-          responseType: null,
-          responseContent: null,
-          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
-          success: false,
-          errorMessage: `No connected ${platform} account`
-        });
-        return; 
+        // Fallback: try finding any connected account for this platform
+        // This handles cases where webhook sends different account IDs
+        // than what's stored in the connections table
+        console.log(`⚠️  No connection found for ${platform}/${accountId}, trying fallback lookup...`);
+        conn = await getConnection(platform, null);
+        
+        if (!conn) {
+          console.error(`No connected ${platform} account to reply with`); 
+          await logAutomationEvent(pool, {
+            platform,
+            triggerType,
+            triggerText: text,
+            mediaId,
+            senderId,
+            accountId,
+            automationId: match.id,
+            automationName: match.name,
+            responseType: null,
+            responseContent: null,
+            replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
+            success: false,
+            errorMessage: `No connected ${platform} account`
+          });
+          return;
+        }
+        console.log(`🔄 Using fallback ${platform} connection: ${conn.account_id}`);
       }
       const token = decrypt(conn.access_token);
 
@@ -924,25 +976,32 @@ function router(pool) {
           continue;
         }
 
-        const conn = await getConnection('threads', accountId);
+        let conn = await getConnection('threads', accountId);
         if (!conn) { 
-          console.error('No connected Threads account to reply with'); 
-          await logAutomationEvent(pool, {
-            platform,
-            triggerType: 'comment',
-            triggerText: text,
-            mediaId,
-            senderId: null,
-            accountId,
-            automationId: match.id,
-            automationName: match.name,
-            responseType: responseResult.type,
-            responseContent: reply,
-            replyLocation: 'comment',
-            success: false,
-            errorMessage: 'No connected Threads account'
-          });
-          continue; 
+          // Fallback: try finding any connected Threads account
+          console.log(`⚠️  No Threads connection found for ${accountId}, trying fallback lookup...`);
+          conn = await getConnection('threads', null);
+          
+          if (!conn) {
+            console.error('No connected Threads account to reply with'); 
+            await logAutomationEvent(pool, {
+              platform,
+              triggerType: 'comment',
+              triggerText: text,
+              mediaId,
+              senderId: null,
+              accountId,
+              automationId: match.id,
+              automationName: match.name,
+              responseType: responseResult.type,
+              responseContent: reply,
+              replyLocation: 'comment',
+              success: false,
+              errorMessage: 'No connected Threads account'
+            });
+            continue;
+          }
+          console.log(`🔄 Using fallback Threads connection: ${conn.account_id}`);
         }
         const token = decrypt(conn.access_token);
         console.log(`📤 Sending Threads reply to comment ${replyId} on behalf of account ${conn.account_id}`);

@@ -12,7 +12,17 @@ function findMatch(automations, { platform, triggerType, text, mediaId }) {
     if (a.type !== triggerType && a.type !== 'both') return false;
     
     const platforms = a.platforms || [];
-    if (platforms.length && !platforms.includes(platform)) return false;
+    // Fallback: if platforms array is empty or not set, match all platforms
+    // This handles legacy automations that were created before per-platform support
+    if (platforms.length && !platforms.includes(platform)) {
+      // Additional fallback for Instagram/Facebook cross-platform scenarios
+      // If automation targets 'instagram' but webhook is from 'facebook' (or vice versa),
+      // and the other platform is in the list, still allow the match
+      if (!(platform === 'facebook' && platforms.includes('instagram')) &&
+          !(platform === 'instagram' && platforms.includes('facebook'))) {
+        return false;
+      }
+    }
     // If this automation is scoped to a specific published post on this
     // platform, only match triggers whose media id corresponds to it.
     // Important: only ENFORCE this when we actually have a published id to
