@@ -6,9 +6,21 @@ const { decrypt } = require('../lib/crypto');
 // Graph API version the tokens were issued/used against.
 const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v21.0';
 
+// Build a Graph API URL with properly encoded params.
+// IMPORTANT: access tokens routinely contain characters like +, /, =, & that
+// are NOT safe to paste into a URL via template-string interpolation — doing
+// so can truncate or corrupt the token and Graph responds with
+// "(#100) Cannot parse access token". URLSearchParams handles this correctly,
+// the same way axios's `params` option (used in platforms/facebook.js and
+// platforms/instagram.js) already does.
+function graphUrl(path, params) {
+    const qs = new URLSearchParams(params).toString();
+    return `https://graph.facebook.com/${GRAPH_VERSION}${path}?${qs}`;
+}
+
 // Helper: call the Graph API and normalize errors so callers always know
 // whether they got real data or a failure, instead of silently getting 0s.
-async function fetchGraphInsights(url) {
+async function fetchGraph(url) {
     const response = await fetch(url);
     const data = await response.json();
 
@@ -20,6 +32,55 @@ async function fetchGraphInsights(url) {
     }
 
     return data;
+}
+
+// Fetch a set of insights metrics, tolerating individual invalid/unavailable
+// metric names instead of failing the whole request. Meta frequently
+// deprecates or renames metrics (see notes below), so if the full batch is
+// rejected with "must be a valid insights metric" we retry metric-by-metric
+// and just omit whichever ones fail, rather than surfacing 0s for everything.
+async function fetchMetricsResilient(nodeId, metrics, accessToken, extraParams = {}) {
+    const metricList = metrics.join(',');
+    try {
+        const data = await fetchGraph(graphUrl(`/${nodeId}/insights`, {
+            metric: metricList,
+            access_token: accessToken,
+            ...extraParams
+        }));
+        return data.data || [];
+    } catch (err) {
+        // If it's not a metric-validity problem, don't mask it — let the caller
+        // see the real error (e.g. expired token, missing permission).
+        const isInvalidMetric = err.graphError?.code === 100;
+        if (!isInvalidMetric) throw err;
+
+        const results = [];
+        for (const metric of metrics) {
+            try {
+                const data = await fetchGraph(graphUrl(`/${nodeId}/insights`, {
+                    metric,
+                    access_token: accessToken,
+                    ...extraParams
+                }));
+                results.push(...(data.data || []));
+            } catch (metricErr) {
+                console.error(`Skipping invalid/unsupported metric "${metric}" for ${nodeId}:`, metricErr.graphError?.message || metricErr.message);
+            }
+        }
+        return results;
+    }
+}
+
+function toMetricsMap(items) {
+    const metrics = {};
+    items.forEach(item => {
+        if (item.values && item.values.length > 0) {
+            metrics[item.name] = item.values[item.values.length - 1].value;
+        } else if (typeof item.total_value?.value !== 'undefined') {
+            metrics[item.name] = item.total_value.value;
+        }
+    });
+    return metrics;
 }
 
 module.exports = function insightsRouter(pool) {
@@ -64,19 +125,13 @@ module.exports = function insightsRouter(pool) {
                 // NOTE: 'impressions' was retired by Meta for IG accounts created
                 // after Jul 2, 2024 (and is being sunset generally) — 'views' is
                 // the supported replacement metric.
-                const insightFields = 'follower_count,reach,views,accounts_engaged';
-                const insightsUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/insights?metric=${insightFields}&period=day&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(insightsUrl);
-
-                const metrics = {};
-                (data.data || []).forEach(item => {
-                    if (item.values && item.values.length > 0) {
-                        metrics[item.name] = item.values[item.values.length - 1].value;
-                    } else if (typeof item.total_value?.value !== 'undefined') {
-                        metrics[item.name] = item.total_value.value;
-                    }
-                });
+                const items = await fetchMetricsResilient(
+                    pageId,
+                    ['follower_count', 'reach', 'views', 'accounts_engaged'],
+                    accessToken,
+                    { period: 'day' }
+                );
+                const metrics = toMetricsMap(items);
 
                 responseData.data = {
                     followers: metrics.follower_count || 0,
@@ -92,27 +147,23 @@ module.exports = function insightsRouter(pool) {
                 // views across the Page Insights API). page_views is the current
                 // supported metric — verify against Graph API Explorer periodically,
                 // as Meta has been iterating on these names throughout 2025-2026.
-                const insightFields = 'page_views,page_post_engagements';
-                const insightsUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/insights?metric=${insightFields}&period=day&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(insightsUrl);
-
-                const metrics = {};
-                (data.data || []).forEach(item => {
-                    if (item.values && item.values.length > 0) {
-                        metrics[item.name] = item.values[item.values.length - 1].value;
-                    }
-                });
+                const items = await fetchMetricsResilient(
+                    pageId,
+                    ['page_views', 'page_post_engagements'],
+                    accessToken,
+                    { period: 'day' }
+                );
+                const metrics = toMetricsMap(items);
 
                 // fan_count lives on the Page node itself, not the insights edge.
                 let fanCount = 0;
                 try {
-                    const pageInfo = await fetchGraphInsights(
-                        `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}?fields=fan_count&access_token=${accessToken}`
+                    const pageInfo = await fetchGraph(
+                        graphUrl(`/${pageId}`, { fields: 'fan_count', access_token: accessToken })
                     );
                     if (typeof pageInfo.fan_count === 'number') fanCount = pageInfo.fan_count;
                 } catch (e) {
-                    console.error('Error fetching page fan_count:', e.message);
+                    console.error('Error fetching page fan_count:', e.graphError?.message || e.message);
                 }
 
                 responseData.data = {
@@ -122,21 +173,16 @@ module.exports = function insightsRouter(pool) {
                     engagement: metrics.page_post_engagements || 0
                 };
             } else if (platform === 'threads') {
-                // Threads API insights - using correct endpoint
+                // Threads account-level insights. Uses the same /insights edge as
+                // Facebook/Instagram (the threads-specific /threads_insights edge
+                // name was unconfirmed and is not used here).
                 const threadsUserId = pageId; // This should be the threads user ID
-
-                const insightsUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${threadsUserId}/threads_insights?metric=views,likes,replies,reposts,quotes,followers_count&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(insightsUrl);
-
-                const metrics = {};
-                (data.data || []).forEach(item => {
-                    if (item.values && item.values.length > 0) {
-                        metrics[item.name] = item.values[item.values.length - 1].value;
-                    } else if (typeof item.total_value?.value !== 'undefined') {
-                        metrics[item.name] = item.total_value.value;
-                    }
-                });
+                const items = await fetchMetricsResilient(
+                    threadsUserId,
+                    ['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                    accessToken
+                );
+                const metrics = toMetricsMap(items);
 
                 responseData.data = {
                     followers: metrics.followers_count || 0,
@@ -190,9 +236,11 @@ module.exports = function insightsRouter(pool) {
 
             // Fetch posts with insights based on platform
             if (platform === 'instagram') {
-                const mediaUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count&limit=25&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(mediaUrl);
+                const data = await fetchGraph(graphUrl(`/${pageId}/media`, {
+                    fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count',
+                    limit: 25,
+                    access_token: accessToken
+                }));
 
                 responseData.data = (data.data || []).map(post => ({
                     id: post.id,
@@ -207,9 +255,11 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'facebook') {
-                const postsUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/posts?fields=id,message,created_time,full_picture,permalink_url,reactions.summary(true),comments.summary(true),shares&limit=25&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(postsUrl);
+                const data = await fetchGraph(graphUrl(`/${pageId}/posts`, {
+                    fields: 'id,message,created_time,full_picture,permalink_url,reactions.summary(true),comments.summary(true),shares',
+                    limit: 25,
+                    access_token: accessToken
+                }));
 
                 responseData.data = (data.data || []).map(post => ({
                     id: post.id,
@@ -224,9 +274,11 @@ module.exports = function insightsRouter(pool) {
                     reach: 0
                 }));
             } else if (platform === 'threads') {
-                const threadsUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/threads?fields=id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count&limit=25&access_token=${accessToken}`;
-
-                const data = await fetchGraphInsights(threadsUrl);
+                const data = await fetchGraph(graphUrl(`/${pageId}/threads`, {
+                    fields: 'id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count',
+                    limit: 25,
+                    access_token: accessToken
+                }));
 
                 responseData.data = (data.data || []).map(post => ({
                     id: post.id,
