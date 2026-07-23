@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-in-producti
 // Must exactly match a Valid OAuth Redirect URI configured in each app's dashboard.
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v21.0';
+const GRAPH_VERSION = process.env.GRAPH_VERSION || 'v25.0';
 const THREADS_VERSION = process.env.THREADS_VERSION || 'v1.0';
 
 // Never send access_token back to the client, even to an authed admin —
