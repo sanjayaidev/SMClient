@@ -26,7 +26,7 @@ async function publishPost(token, pageId, { caption, mediaUrl }) {
 // the automation builder can target posts made outside this app.
 async function listRecentPosts(token, pageId, limit = 25) {
   const res = await get(`${BASE}/${pageId}/posts`, {
-    fields: 'id,message,created_time,permalink_url,attachments{media{image,image_type,source},type,url}',
+    fields: 'id,message,created_time,permalink_url,attachments{media{image,source},type,url}',
     limit,
   }, token);
   return (res.data || []).map(post => {
