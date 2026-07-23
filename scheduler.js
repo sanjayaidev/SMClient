@@ -20,7 +20,7 @@ async function publishToPlatform(pool, platform, post) {
   const token = decrypt(conn.access_token);
 
   if (platform === 'instagram') {
-    return instagram.publishPost(token, conn.account_id, { caption: post.caption, mediaUrl: post.media_url });
+    return instagram.publishPost(token, conn.account_id, { caption: post.caption, mediaUrl: post.media_url }, conn);
   }
   if (platform === 'facebook') {
     return facebook.publishPost(token, conn.page_id || conn.account_id, { caption: post.caption, mediaUrl: post.media_url });

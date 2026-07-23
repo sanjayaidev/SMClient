@@ -683,7 +683,7 @@ function router(pool) {
             const commentReply = commentResult?.text;
             if (commentReply) {
               console.log(`📤 Sending ${platform} comment reply on behalf of account ${conn.account_id || conn.page_id}`);
-              await instagram.replyToComment(token, replyTargetId, commentReply);
+              await instagram.replyToComment(token, replyTargetId, commentReply, conn);
               await logAutomationEvent(pool, {
                 platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
                 automationId: match.id, automationName: match.name,
@@ -698,7 +698,7 @@ function router(pool) {
             const dmReply = dmResult?.text;
             if (dmReply) {
               console.log(`📤 Sending ${platform} private reply (DM) for comment ${replyTargetId} on behalf of account ${conn.account_id || conn.page_id}`);
-              await instagram.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply);
+              await instagram.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply, conn);
               await logAutomationEvent(pool, {
                 platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
                 automationId: match.id, automationName: match.name,
@@ -721,7 +721,7 @@ function router(pool) {
           }
           console.log(`📤 Sending ${platform} dm reply on behalf of account ${conn.account_id || conn.page_id}`);
           if (platform === 'instagram') {
-            await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
+            await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply, conn);
           } else if (platform === 'facebook') {
             await facebook.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
           }
