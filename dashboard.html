@@ -656,6 +656,7 @@
 <nav class="sidebar" id="sidebar">
     <div class="logo"><i class="fas fa-calendar-alt"></i> <span>Planner</span></div>
     <a href="/dashboard" class="nav-item active" data-tab="scheduler"><i class="fas fa-calendar-day"></i> Scheduler</a>
+    <a href="/dashboard" class="nav-item" data-tab="inbox"><i class="fas fa-inbox"></i> Inbox <span class="badge" id="inboxBadge">0</span></a>
     <a href="/dashboard" class="nav-item" data-tab="connections"><i class="fas fa-link"></i> Connections</a>
     <a href="/dashboard" class="nav-item" data-tab="automation"><i class="fas fa-bolt"></i> Automation</a>
     <a href="/insights" class="nav-item"><i class="fas fa-chart-line"></i> Insights</a>
@@ -708,6 +709,64 @@
             <div id="calendarGrid"></div>
             <div class="day-detail-panel" id="dayDetailPanel">
                 <div class="text-muted text-center" style="padding:20px 0;">Click a day to see content</div>
+            </div>
+        </div>
+
+        <!-- ===== TAB: INBOX ===== -->
+        <div class="tab-content" id="tab-inbox">
+            <!-- Inbox Tabs -->
+            <div class="card mb-2" style="padding:12px 16px;">
+                <div class="flex-between">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-sm active" data-inbox-tab="fb-ig"><i class="fas fa-comments"></i> Facebook & Instagram</button>
+                        <button class="btn btn-sm" data-inbox-tab="threads"><i class="fas fa-at"></i> Threads</button>
+                    </div>
+                    <button class="btn btn-sm btn-outline" id="refreshInboxBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+            </div>
+
+            <!-- FB & IG Tab Content -->
+            <div id="inbox-fb-ig" class="inbox-tab-content">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px;">
+                    <!-- FB Comments -->
+                    <div class="card" style="padding:14px;">
+                        <div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                            <i class="fab fa-facebook" style="color:var(--fb);"></i> Comments
+                        </div>
+                        <div id="fbCommentsList" style="max-height:400px;overflow-y:auto;"></div>
+                    </div>
+                    <!-- FB DMs -->
+                    <div class="card" style="padding:14px;">
+                        <div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                            <i class="fab fa-facebook" style="color:var(--fb);"></i> Messages
+                        </div>
+                        <div id="fbDmsList" style="max-height:400px;overflow-y:auto;"></div>
+                    </div>
+                    <!-- IG Comments -->
+                    <div class="card" style="padding:14px;">
+                        <div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                            <i class="fab fa-instagram" style="color:var(--ig);"></i> Comments
+                        </div>
+                        <div id="igCommentsList" style="max-height:400px;overflow-y:auto;"></div>
+                    </div>
+                    <!-- IG DMs -->
+                    <div class="card" style="padding:14px;">
+                        <div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                            <i class="fab fa-instagram" style="color:var(--ig);"></i> Messages
+                        </div>
+                        <div id="igDmsList" style="max-height:400px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Threads Tab Content -->
+            <div id="inbox-threads" class="inbox-tab-content" style="display:none;">
+                <div class="card" style="padding:14px;">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-at" style="color:var(--threads);"></i> Threads Comments
+                    </div>
+                    <div id="threadsCommentsList" style="max-height:500px;overflow-y:auto;"></div>
+                </div>
             </div>
         </div>
 
@@ -1153,6 +1212,7 @@
     const navItems = document.querySelectorAll('.nav-item[data-tab]');
     const tabContents = {
         scheduler: document.getElementById('tab-scheduler'),
+        inbox: document.getElementById('tab-inbox'),
         connections: document.getElementById('tab-connections'),
         automation: document.getElementById('tab-automation'),
         profile: document.getElementById('tab-profile'),
@@ -1161,6 +1221,7 @@
     const pageTitle = document.getElementById('pageTitle');
     const titleMap = {
         scheduler: '<i class="fas fa-calendar-day"></i> Scheduler',
+        inbox: '<i class="fas fa-inbox"></i> Inbox',
         connections: '<i class="fas fa-link"></i> Connections',
         automation: '<i class="fas fa-bolt"></i> Automation',
         profile: '<i class="fas fa-user"></i> Profile',
@@ -2609,6 +2670,259 @@
         localStorage.removeItem('auth_token');
         window.location.href = '/';
     });
+
+    // ============================================================
+    // INBOX FUNCTIONALITY
+    // ============================================================
+    
+    // Inbox tab switching (FB/IG vs Threads)
+    const inboxTabButtons = document.querySelectorAll('[data-inbox-tab]');
+    const inboxTabContents = document.querySelectorAll('.inbox-tab-content');
+    
+    inboxTabButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tabId = this.dataset.inboxTab;
+            inboxTabButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            inboxTabContents.forEach(content => {
+                content.style.display = content.id === `inbox-${tabId}` ? 'block' : 'none';
+            });
+            loadInboxData(tabId);
+        });
+    });
+
+    // Refresh inbox button
+    document.getElementById('refreshInboxBtn').addEventListener('click', () => {
+        const activeTab = document.querySelector('[data-inbox-tab].active')?.dataset.inboxTab || 'fb-ig';
+        loadInboxData(activeTab);
+    });
+
+    // Load inbox data from API
+    async function loadInboxData(tab = 'fb-ig') {
+        try {
+            if (tab === 'fb-ig') {
+                await Promise.all([
+                    loadFbComments(),
+                    loadFbDms(),
+                    loadIgComments(),
+                    loadIgDms()
+                ]);
+            } else if (tab === 'threads') {
+                await loadThreadsComments();
+            }
+            updateInboxBadge();
+        } catch (err) {
+            console.error('Failed to load inbox data:', err);
+        }
+    }
+
+    // Create a message/comment card with reply option
+    function createMessageCard(item, platform, type) {
+        const card = document.createElement('div');
+        card.style.cssText = 'padding:10px;border-bottom:1px solid var(--border);margin-bottom:8px;';
+        
+        const iconClass = platform === 'facebook' ? 'fa-facebook' : (platform === 'instagram' ? 'fa-instagram' : 'fa-at');
+        const iconColor = platform === 'facebook' ? 'var(--fb)' : (platform === 'instagram' ? 'var(--ig)' : 'var(--threads)');
+        
+        const triggerText = item.trigger_text || '';
+        const truncatedText = triggerText.length > 80 ? triggerText.substring(0, 80) + '...' : triggerText;
+        
+        card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+                <div style="font-size:11px;color:var(--text-muted);">
+                    <i class="fab ${iconClass}" style="color:${iconColor};"></i> 
+                    ${type} · ${new Date(item.created_at).toLocaleDateString()}
+                </div>
+            </div>
+            <div style="font-size:13px;margin-bottom:8px;line-height:1.4;">${escapeHtml(truncatedText)}</div>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm btn-outline" onclick="showReplyModal('${item.id}', '${platform}', '${type}')">
+                    <i class="fas fa-reply"></i> Reply
+                </button>
+            </div>
+        `;
+        return card;
+    }
+
+    // Load Facebook Comments
+    async function loadFbComments() {
+        const container = document.getElementById('fbCommentsList');
+        if (!container) return;
+        try {
+            const res = await apiFetch('/api/comments?platform=facebook&limit=20');
+            const comments = await res.json();
+            container.innerHTML = '';
+            if (comments.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;">No comments</div>';
+                return;
+            }
+            comments.forEach(c => container.appendChild(createMessageCard(c, 'facebook', 'Comment')));
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;color:var(--error);">Failed to load</div>';
+        }
+    }
+
+    // Load Facebook DMs
+    async function loadFbDms() {
+        const container = document.getElementById('fbDmsList');
+        if (!container) return;
+        try {
+            const res = await apiFetch('/api/comments?platform=facebook&limit=20');
+            const messages = await res.json();
+            const dms = messages.filter(m => m.trigger_type === 'dm' || m.trigger_type === 'message');
+            container.innerHTML = '';
+            if (dms.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;">No messages</div>';
+                return;
+            }
+            dms.forEach(m => container.appendChild(createMessageCard(m, 'facebook', 'DM')));
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;color:var(--error);">Failed to load</div>';
+        }
+    }
+
+    // Load Instagram Comments
+    async function loadIgComments() {
+        const container = document.getElementById('igCommentsList');
+        if (!container) return;
+        try {
+            const res = await apiFetch('/api/comments?platform=instagram&limit=20');
+            const comments = await res.json();
+            container.innerHTML = '';
+            if (comments.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;">No comments</div>';
+                return;
+            }
+            comments.forEach(c => container.appendChild(createMessageCard(c, 'instagram', 'Comment')));
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;color:var(--error);">Failed to load</div>';
+        }
+    }
+
+    // Load Instagram DMs
+    async function loadIgDms() {
+        const container = document.getElementById('igDmsList');
+        if (!container) return;
+        try {
+            const res = await apiFetch('/api/comments?platform=instagram&limit=20');
+            const messages = await res.json();
+            const dms = messages.filter(m => m.trigger_type === 'dm' || m.trigger_type === 'message');
+            container.innerHTML = '';
+            if (dms.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;">No messages</div>';
+                return;
+            }
+            dms.forEach(m => container.appendChild(createMessageCard(m, 'instagram', 'DM')));
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted" style="padding:10px;font-size:12px;color:var(--error);">Failed to load</div>';
+        }
+    }
+
+    // Load Threads Comments
+    async function loadThreadsComments() {
+        const container = document.getElementById('threadsCommentsList');
+        if (!container) return;
+        try {
+            const res = await apiFetch('/api/comments?platform=threads&limit=50');
+            const comments = await res.json();
+            container.innerHTML = '';
+            if (comments.length === 0) {
+                container.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;">No threads comments</div>';
+                return;
+            }
+            // Full-width cards for threads
+            comments.forEach(c => {
+                const card = createMessageCard(c, 'threads', 'Thread Reply');
+                card.style.cssText += 'max-width:700px;margin-left:auto;margin-right:auto;';
+                container.appendChild(card);
+            });
+        } catch (err) {
+            container.innerHTML = '<div class="text-muted" style="padding:20px;text-align:center;color:var(--error);">Failed to load</div>';
+        }
+    }
+
+    // Update inbox badge count
+    async function updateInboxBadge() {
+        try {
+            const [fbRes, igRes, thRes] = await Promise.all([
+                apiFetch('/api/comments?platform=facebook&limit=100'),
+                apiFetch('/api/comments?platform=instagram&limit=100'),
+                apiFetch('/api/comments?platform=threads&limit=100')
+            ]);
+            const [fb, ig, th] = await Promise.all([fbRes.json(), igRes.json(), thRes.json()]);
+            const total = fb.length + ig.length + th.length;
+            const badge = document.getElementById('inboxBadge');
+            if (badge) {
+                badge.textContent = total > 99 ? '99+' : total;
+                badge.style.display = total > 0 ? 'inline-block' : 'none';
+                if (total > 0) badge.classList.add('active-badge');
+            }
+        } catch (err) {
+            console.error('Failed to update inbox badge:', err);
+        }
+    }
+
+    // Show reply modal
+    window.showReplyModal = function(commentId, platform, type) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:10001;';
+        modal.innerHTML = `
+            <div class="modal" style="max-width:480px;width:90%;">
+                <h2><i class="fas fa-reply" style="color:var(--primary);"></i> Reply to ${type}</h2>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Platform: ${platform.charAt(0).toUpperCase() + platform.slice(1)}</p>
+                <textarea id="replyTextInput" rows="4" placeholder="Type your reply..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+                <div class="text-muted" id="replyError" style="display:none;color:var(--error);font-size:13px;margin-top:8px;"></div>
+                <div class="modal-actions" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                    <button class="btn btn-primary" id="sendReplyBtn"><i class="fas fa-paper-plane"></i> Send Reply</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('sendReplyBtn').addEventListener('click', async () => {
+            const text = document.getElementById('replyTextInput').value.trim();
+            const errorEl = document.getElementById('replyError');
+            if (!text) {
+                errorEl.textContent = 'Please enter a reply message';
+                errorEl.style.display = 'block';
+                return;
+            }
+            errorEl.style.display = 'none';
+            const btn = document.getElementById('sendReplyBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            try {
+                const res = await apiFetch(`/api/comments/${commentId}/reply`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message: text })
+                });
+                if (res.ok) {
+                    modal.remove();
+                    // Refresh the inbox
+                    const activeTab = document.querySelector('[data-inbox-tab].active')?.dataset.inboxTab || 'fb-ig';
+                    loadInboxData(activeTab);
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Failed to send reply');
+                }
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reply';
+            }
+        });
+    };
+
+    // HTML escape helper
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
     checkAuthAndInit();
 
