@@ -33,8 +33,14 @@ async function publishPost(token, igId, { caption, mediaUrl }) {
   return publish.id;
 }
 
-async function replyToComment(token, mediaOrCommentId, message) {
-  const res = await post(`${BASE}/${mediaOrCommentId}/comments`, { message }, token);
+async function replyToComment(token, commentId, message) {
+  // IMPORTANT: replying to a comment uses the /{ig-comment-id}/replies edge,
+  // NOT /{id}/comments — /comments creates a new top-level comment on a media
+  // object. Posting to /comments with a comment id (not a media id) returns
+  // Graph error code 100 "Unsupported post request... object does not exist",
+  // which is misleading since the comment id is perfectly valid — it's just
+  // the wrong edge for that id.
+  const res = await post(`${BASE}/${commentId}/replies`, { message }, token);
   return res.id;
 }
 
