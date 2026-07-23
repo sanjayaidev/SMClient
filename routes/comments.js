@@ -91,7 +91,7 @@ function router(pool) {
         replyId = await facebook.replyToComment(token, commentId, message);
       } else if (platform === 'instagram') {
         const instagram = require('../platforms/instagram');
-        replyId = await instagram.replyToComment(token, commentId, message);
+        replyId = await instagram.replyToComment(token, commentId, message, connRes.rows[0]);
       } else if (platform === 'threads') {
         const threads = require('../platforms/threads');
         // For Threads, we need the threads user ID from the connection

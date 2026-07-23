@@ -34,7 +34,7 @@ function router(pool) {
         try {
           let items = [];
           if (platform === 'instagram') {
-            items = (await instagram.listRecentMedia(token, conn.account_id)).map((m) => ({
+            items = (await instagram.listRecentMedia(token, conn.account_id, null, conn)).map((m) => ({
               platform,
               remote_id: m.id,
               caption: m.caption || '',
