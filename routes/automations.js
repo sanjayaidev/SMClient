@@ -1,5 +1,34 @@
 const express = require('express');
 
+// Resolves a { platform: postId } map (postId = internal posts.id, as sent by
+// the client) into { platform: platformPublishedId } using posts.published_ids.
+// This is the ONE place that must produce values matching what the webhook
+// mediaId comparison in automations/matcher.js expects — do not inline this
+// logic elsewhere.
+async function resolveTargetPublishedIds(pool, userId, target_published_ids) {
+  if (!target_published_ids || typeof target_published_ids !== 'object' || !Object.keys(target_published_ids).length) {
+    return null;
+  }
+  const resolved = {};
+  for (const [platform, postId] of Object.entries(target_published_ids)) {
+    if (!postId) continue;
+    const postCheck = await pool.query('SELECT id, published_ids FROM posts WHERE id=$1 AND user_id=$2', [postId, userId]);
+    if (!postCheck.rows.length) {
+      const err = new Error(`target_published_ids.${platform} does not refer to one of your posts`);
+      err.status = 400;
+      throw err;
+    }
+    const platformPublishedId = (postCheck.rows[0].published_ids || {})[platform];
+    if (!platformPublishedId) {
+      const err = new Error(`target_published_ids.${platform}: that post has not been published to ${platform} yet, so there is no platform id to target`);
+      err.status = 400;
+      throw err;
+    }
+    resolved[platform] = String(platformPublishedId);
+  }
+  return Object.keys(resolved).length ? resolved : null;
+}
+
 function router(pool) {
   const r = express.Router();
 
@@ -27,22 +56,13 @@ function router(pool) {
       }
       let targetPostId = null;
       let processedTargetPublishedIds = null;
-      
+
       // Handle new per-platform targeting (target_published_ids takes precedence)
       if (target_published_ids && typeof target_published_ids === 'object' && Object.keys(target_published_ids).length > 0) {
-        // Validate each post ID in the target_published_ids object
-        processedTargetPublishedIds = {};
-        for (const [platform, postId] of Object.entries(target_published_ids)) {
-          if (postId) {
-            const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [postId, userId]);
-            if (!postCheck.rows.length) {
-              return res.status(400).json({ error: `target_published_ids.${platform} does not refer to one of your posts` });
-            }
-            processedTargetPublishedIds[platform] = String(postId);
-          }
-        }
-        if (Object.keys(processedTargetPublishedIds).length === 0) {
-          processedTargetPublishedIds = null;
+        try {
+          processedTargetPublishedIds = await resolveTargetPublishedIds(pool, userId, target_published_ids);
+        } catch (err) {
+          return res.status(err.status || 500).json({ error: err.message });
         }
       } else if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
         // Legacy single-post targeting
@@ -134,22 +154,13 @@ function router(pool) {
       
       let targetPostId = null;
       let processedTargetPublishedIds = null;
-      
+
       // Handle new per-platform targeting (target_published_ids takes precedence)
       if (target_published_ids && typeof target_published_ids === 'object' && Object.keys(target_published_ids).length > 0) {
-        // Validate each post ID in the target_published_ids object
-        processedTargetPublishedIds = {};
-        for (const [platform, postId] of Object.entries(target_published_ids)) {
-          if (postId) {
-            const postCheck = await pool.query('SELECT id FROM posts WHERE id=$1 AND user_id=$2', [postId, userId]);
-            if (!postCheck.rows.length) {
-              return res.status(400).json({ error: `target_published_ids.${platform} does not refer to one of your posts` });
-            }
-            processedTargetPublishedIds[platform] = String(postId);
-          }
-        }
-        if (Object.keys(processedTargetPublishedIds).length === 0) {
-          processedTargetPublishedIds = null;
+        try {
+          processedTargetPublishedIds = await resolveTargetPublishedIds(pool, userId, target_published_ids);
+        } catch (err) {
+          return res.status(err.status || 500).json({ error: err.message });
         }
       } else if (target_post_id !== undefined && target_post_id !== null && target_post_id !== '') {
         // Legacy single-post targeting
