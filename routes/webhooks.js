@@ -229,7 +229,7 @@ function router(pool) {
     return false;
   }
 
-  async function getConnection(platform, accountId) {
+  async function getConnection(platform, accountId, extraLookupId = null) {
     // Threads' webhook payload doesn't give us a reliable per-account id to
     // match on (see call site below), so accountId is sometimes omitted —
     // passing a bare `undefined` straight to pg throws "could not determine
@@ -241,12 +241,47 @@ function router(pool) {
       );
       return res.rows[0] || null;
     }
-    const res = await pool.query(
+    
+    // Primary lookup by original accountId (handles page_id and account_id)
+    let res = await pool.query(
       'SELECT * FROM connections WHERE platform=$1 AND (account_id=$2 OR page_id=$2) AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
       [platform, accountId]
     );
-    return res.rows[0] || null;
+    let connection = res.rows[0] || null;
+    
+    // Fallback lookup using extraLookupId (for direct IG login scenarios)
+    if (!connection && extraLookupId) {
+      res = await pool.query(
+        'SELECT * FROM connections WHERE platform=$1 AND account_id=$2 AND is_connected=true ORDER BY updated_at DESC LIMIT 1',
+        [platform, extraLookupId]
+      );
+      connection = res.rows[0] || null;
+    }
+    
+    // Final fallback for Instagram: return any connected account if specific lookup fails
+    if (!connection && platform === 'instagram') {
+      res = await pool.query(
+        'SELECT * FROM connections WHERE platform=$1 AND is_connected=true AND (account_id IS NOT NULL OR page_id IS NOT NULL) ORDER BY created_at DESC LIMIT 1',
+        [platform]
+      );
+      connection = res.rows[0] || null;
+      
+      // Log this fallback for debugging
+      if (connection) {
+        console.log(`[FALLBACK] Using Instagram connection ${connection.account_id || connection.page_id} as fallback for accountId ${accountId}`);
+        addToDebugLog({ 
+          platform, 
+          event: 'connection_fallback', 
+          originalAccountId: accountId, 
+          fallbackConnectionId: connection.account_id || connection.page_id,
+          extraLookupId 
+        });
+      }
+    }
+    
+    return connection;
   }
+
   async function getActiveAutomations() {
     const res = await pool.query(
       `SELECT automations.*, 
@@ -282,7 +317,6 @@ function router(pool) {
               : row.post_published_ids || {})
     }));
   }
-
 
   // ===== Facebook Webhook =====
   r.get('/webhooks/facebook', (req, res) => {
@@ -368,8 +402,18 @@ function router(pool) {
         const commentId = value.comment_id;
         const text = value.message;
         const mediaId = value.post_id || entry.id;
+        // Extract fromId from the comment data
+        const fromId = value.from?.id || null;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId, accountId: entry.id });
+        await handleTrigger({ 
+          platform, 
+          triggerType: 'comment', 
+          text, 
+          replyTargetId: commentId, 
+          mediaId, 
+          accountId: entry.id,
+          extraLookupId: fromId
+        });
       }
       // DMs arrive under "messaging"
       for (const messaging of entry.messaging || []) {
@@ -378,11 +422,18 @@ function router(pool) {
         const text = messaging.message.text;
         const msgId = messaging.message.mid;
         if (await alreadyProcessed(`dm:${msgId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'dm', text, senderId, accountId: entry.id });
+        await handleTrigger({ 
+          platform, 
+          triggerType: 'dm', 
+          text, 
+          senderId, 
+          accountId: entry.id,
+          extraLookupId: null
+        });
       }
     }
 
-    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId, extraLookupId = null }) {
       console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
       
       const automations = await getActiveAutomations();
@@ -411,7 +462,7 @@ function router(pool) {
       
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
 
-      const conn = await getConnection(platform, accountId);
+      const conn = await getConnection(platform, accountId, extraLookupId);
       if (!conn) { 
         console.error(`No connected ${platform} account to reply with`); 
         await logAutomationEvent(pool, {
@@ -520,6 +571,8 @@ function router(pool) {
       }
     }
   });
+
+  // ===== Instagram Webhook =====
   r.get('/webhooks/instagram', (req, res) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
@@ -587,8 +640,18 @@ function router(pool) {
         const commentId = value.id;
         const text = value.text;
         const mediaId = value.media?.id || entry.id;
+        // Extract fromId from the comment data (Instagram uses 'from' field)
+        const fromId = value.from?.id || null;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId, accountId: entry.id });
+        await handleTrigger({ 
+          platform, 
+          triggerType: 'comment', 
+          text, 
+          replyTargetId: commentId, 
+          mediaId, 
+          accountId: entry.id,
+          extraLookupId: fromId
+        });
       }
       // DMs arrive under "messaging"
       for (const messaging of entry.messaging || []) {
@@ -597,11 +660,18 @@ function router(pool) {
         const text = messaging.message.text;
         const msgId = messaging.message.mid;
         if (await alreadyProcessed(`dm:${msgId}`)) continue;
-        await handleTrigger({ platform, triggerType: 'dm', text, senderId, accountId: entry.id });
+        await handleTrigger({ 
+          platform, 
+          triggerType: 'dm', 
+          text, 
+          senderId, 
+          accountId: entry.id,
+          extraLookupId: null
+        });
       }
     }
 
-    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId }) {
+    async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId, extraLookupId = null }) {
       console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
       addToDebugLog({ 
         platform, 
@@ -611,7 +681,8 @@ function router(pool) {
         mediaId, 
         senderId, 
         accountId,
-        replyTargetId 
+        replyTargetId,
+        extraLookupId 
       });
       
       const automations = await getActiveAutomations();
@@ -642,7 +713,7 @@ function router(pool) {
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       addToDebugLog({ platform, event: 'automation_matched', automationId: match.id, automationName: match.name, triggerType });
 
-      const conn = await getConnection(platform, accountId);
+      const conn = await getConnection(platform, accountId, extraLookupId);
       if (!conn) { 
         console.error(`No connected ${platform} account to reply with`); 
         await logAutomationEvent(pool, {
@@ -924,7 +995,7 @@ function router(pool) {
           continue;
         }
 
-        const conn = await getConnection('threads', accountId);
+        const conn = await getConnection('threads', accountId, null);
         if (!conn) { 
           console.error('No connected Threads account to reply with'); 
           await logAutomationEvent(pool, {
