@@ -544,6 +544,28 @@
 
   const PREFIX = { instagram: 'ig', facebook: 'fb', threads: 'th' };
 
+  // Auth: this app uses a JWT stored in localStorage (see dashboard.html),
+  // sent as a Bearer token — not cookies. Every authed fetch needs this
+  // header or the API responds 401 "Missing or malformed Authorization header".
+  function authHeaders() {
+    const token = localStorage.getItem('auth_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
+
+  async function apiFetch(url, options = {}) {
+    const res = await fetch(url, {
+      ...options,
+      credentials: 'include',
+      headers: { ...(options.headers || {}), ...authHeaders() }
+    });
+    if (res.status === 401) {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/';
+      return null;
+    }
+    return res;
+  }
+
   // Platform switching
   const navItems = document.querySelectorAll('.nav-item[data-platform]');
   const views = document.querySelectorAll('.platform-view');
@@ -670,9 +692,11 @@
 
     try {
       const [accountRes, postsRes] = await Promise.all([
-        fetch(`/api/insights/account?platform=${platform}`, { credentials: 'include' }),
-        fetch(`/api/insights/posts?platform=${platform}`, { credentials: 'include' })
+        apiFetch(`/api/insights/account?platform=${platform}`),
+        apiFetch(`/api/insights/posts?platform=${platform}`)
       ]);
+
+      if (!accountRes || !postsRes) return; // apiFetch already redirected on 401
 
       const accountBody = await accountRes.json().catch(() => ({}));
       const postsBody = await postsRes.json().catch(() => ({}));
