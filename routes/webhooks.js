@@ -97,6 +97,12 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
       const selectedVariation = allVariations[Math.floor(Math.random() * allVariations.length)];
       return { text: selectedVariation, type: 'variation' };
     }
+
+    // Backward-compat: automations saved before comment replies were
+    // variation-only may have a single plain "message" with no variations.
+    if (commentConfig.type === 'text' && commentConfig.message) {
+      return { text: commentConfig.message, type: 'text' };
+    }
     
     // Check for button or media responses
     if (commentConfig.type === 'button' && commentConfig.button_text && commentConfig.button_url) {
@@ -146,11 +152,18 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
       if (aiText) return { text: aiText, type: 'ai' };
     }
     
-    // Check for DM-specific variations
-    const dmVariations = dmConfig.variations || automation.variations || [];
+    // Check for DM-specific variations (kept only for backward-compat with
+    // automations saved before DMs became message-only; the builder no
+    // longer writes dm.variations going forward)
+    const dmVariations = dmConfig.variations || [];
     if (dmVariations.length > 0) {
       const selectedVariation = dmVariations[Math.floor(Math.random() * dmVariations.length)];
       return { text: selectedVariation, type: 'variation' };
+    }
+
+    // DMs are a single message by design -- no variation pool like comments.
+    if (dmConfig.type === 'text' && dmConfig.message) {
+      return { text: dmConfig.message, type: 'text' };
     }
     
     // Check for button or media responses for DMs
@@ -328,18 +341,33 @@ function router(pool) {
     }
 
     const platform = 'facebook';
+    if (payload.object === 'user') {
+      console.log(`⚠️  Received a Facebook USER-object webhook (changed_fields: ${JSON.stringify(payload.entry?.[0]?.changed_fields)}). This app's webhook subscription is set to the "user" object, which only reports personal-profile changes and never delivers Page comments. Subscribe to the "page" object with the "feed" field instead — see setup notes.`);
+      addToDebugLog({ platform, event: 'wrong_webhook_object', reason: 'subscribed_to_user_object_not_page', payload });
+      return;
+    }
     for (const entry of payload.entry || []) {
-      // Comments arrive as "changes" with field "comments"
+      // Unlike Instagram, Facebook Page activity (posts, comments, likes,
+      // reactions) all arrives on a single "feed" field, disambiguated by
+      // value.item / value.verb — there is no separate "comments" field on
+      // the Page object. A payload with changed_fields instead of changes
+      // (object: "user") means the app is subscribed to the wrong webhook
+      // object — see setup notes.
       for (const change of entry.changes || []) {
-        if (change.field !== 'comments') {
+        if (change.field !== 'feed') {
           console.log(`⚠️  Skipping Facebook change with field: ${change.field}`);
           addToDebugLog({ platform, event: 'skipped_change', reason: 'field_mismatch', field: change.field });
           continue;
         }
-        const value = change.value;
-        const commentId = value.id;
-        const text = value.text;
-        const mediaId = value.media?.id || entry.id;
+        const value = change.value || {};
+        if (value.item !== 'comment' || value.verb !== 'add') {
+          console.log(`⚠️  Skipping Facebook feed change - item: ${value.item}, verb: ${value.verb}`);
+          addToDebugLog({ platform, event: 'skipped_change', reason: 'not_new_comment', item: value.item, verb: value.verb });
+          continue;
+        }
+        const commentId = value.comment_id;
+        const text = value.message;
+        const mediaId = value.post_id || entry.id;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
         await handleTrigger({ platform, triggerType: 'comment', text, replyTargetId: commentId, mediaId, accountId: entry.id });
       }

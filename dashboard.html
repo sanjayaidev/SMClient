@@ -980,14 +980,26 @@
 
                         <!-- Text Response -->
                         <div id="textResponseContent">
-                            <label>Reply Message</label>
-                            <textarea id="replyMessage" rows="4" placeholder="Enter your reply message..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
-                            
-                            <label style="margin-top:12px;display:block;">Reply Variations (optional)</label>
-                            <div id="variationsContainer">
-                                <div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>
+                            <!-- Comment reply: message + up to 3 variations, one is picked at random per comment -->
+                            <div id="commentResponseBlock">
+                                <label style="font-weight:600;">Comment Reply</label>
+                                <small class="text-muted" style="display:block;margin-bottom:6px;">Sent as a public reply under the triggering comment.</small>
+                                <label>Reply Message</label>
+                                <textarea id="replyMessage" rows="3" placeholder="Enter your comment reply message..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
+
+                                <label style="margin-top:12px;display:block;">Reply Variations (optional, up to 3 total incl. the message above)</label>
+                                <div id="variationsContainer">
+                                    <div class="variation-input"><textarea rows="2" placeholder="Alternate comment reply..." style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>
+                                </div>
+                                <button class="btn btn-sm btn-outline" id="addVariation" style="margin-top:8px;"><i class="fas fa-plus"></i> Add Variation</button>
                             </div>
-                            <button class="btn btn-sm btn-outline" id="addVariation" style="margin-top:8px;"><i class="fas fa-plus"></i> Add Variation</button>
+
+                            <!-- DM reply: single fixed message, no variations -->
+                            <div id="dmResponseBlock" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+                                <label style="font-weight:600;">DM Message</label>
+                                <small class="text-muted" style="display:block;margin-bottom:6px;">Sent as a direct message. DMs use a single fixed message — no variations.</small>
+                                <textarea id="dmReplyMessage" rows="3" placeholder="Enter your DM message..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;"></textarea>
+                            </div>
                         </div>
 
                         <!-- Button Response -->
@@ -1691,6 +1703,7 @@
         
         // Step 3: Set trigger and keywords
         document.getElementById('autoTrigger').value = a.type || 'comment';
+        updateResponseBlocksForTrigger();
         document.getElementById('kwInput').value = (a.keywords || []).join(', ');
         
         // Step 4: Set response type and data
@@ -1703,21 +1716,37 @@
         // Populate response data based on type
         const responseData = a.response_data || {};
         if (a.response_type === 'text') {
-            document.getElementById('replyMessage').value = responseData.message || '';
-            // Clear variations container and add saved variations
+            // Read from the nested comment/dm configs (falling back to legacy
+            // flat fields or `general`, in case this automation predates the
+            // comment/DM split).
+            const commentCfg = responseData.comment || responseData.general || responseData;
+            const dmCfg = responseData.dm || {};
+
+            document.getElementById('replyMessage').value = commentCfg.message || '';
+            document.getElementById('dmReplyMessage').value = dmCfg.message || '';
+
+            // Clear variations container and add saved comment variations
+            // (capped at 3 total: the base message + up to 2 extra).
             const varContainer = document.getElementById('variationsContainer');
             varContainer.innerHTML = '';
-            const variations = responseData.variations || [];
+            const variations = (commentCfg.variations || []).slice(0, MAX_COMMENT_VARIATIONS - 1);
             if (variations.length === 0) {
-                varContainer.innerHTML = `<div class="variation-input"><textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>`;
+                varContainer.innerHTML = `<div class="variation-input"><textarea rows="2" placeholder="Alternate comment reply..." style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button></div>`;
             } else {
                 variations.forEach((v, idx) => {
                     const div = document.createElement('div');
                     div.className = 'variation-input';
-                    div.innerHTML = `<textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;">${v.replace(/"/g, '&quot;')}</textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
+                    div.innerHTML = `<textarea rows="2" placeholder="Alternate comment reply..." style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;">${v.replace(/"/g, '&quot;')}</textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
                     varContainer.appendChild(div);
                 });
             }
+            document.querySelectorAll('.del-var').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (document.querySelectorAll('.variation-input').length > 1) {
+                        this.closest('.variation-input').remove();
+                    }
+                });
+            });
         } else if (a.response_type === 'button') {
             document.getElementById('buttonText').value = responseData.button_text || '';
             document.getElementById('buttonUrl').value = responseData.button_url || '';
@@ -1964,12 +1993,17 @@
         });
     });
 
-    // Add variation
+    // Add variation — capped at 3 total (the base Reply Message counts as the
+    // first one, so at most 2 extra variation boxes here).
+    const MAX_COMMENT_VARIATIONS = 3;
     document.getElementById('addVariation').addEventListener('click', () => {
         const container = document.getElementById('variationsContainer');
+        if (container.querySelectorAll('.variation-input').length >= MAX_COMMENT_VARIATIONS - 1) {
+            return; // already at cap (base message + 2 variations = 3)
+        }
         const div = document.createElement('div');
         div.className = 'variation-input';
-        div.innerHTML = `<textarea rows="2" style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
+        div.innerHTML = `<textarea rows="2" placeholder="Alternate comment reply..." style="font-family:inherit;font-size:14px;width:calc(100% - 40px);padding:8px;border:1px solid var(--border);border-radius:6px;"></textarea><button class="del-var" style="width:30px;height:34px;margin-left:8px;"><i class="fas fa-times"></i></button>`;
         container.appendChild(div);
         div.querySelector('.del-var').addEventListener('click', () => div.remove());
     });
@@ -1980,6 +2014,19 @@
             }
         });
     });
+
+    // Show/hide the Comment vs DM response blocks depending on trigger type —
+    // no point asking for a DM message on a comment-only automation, or vice versa.
+    function updateResponseBlocksForTrigger() {
+        const trigger = document.getElementById('autoTrigger').value;
+        const commentBlock = document.getElementById('commentResponseBlock');
+        const dmBlock = document.getElementById('dmResponseBlock');
+        if (!commentBlock || !dmBlock) return;
+        commentBlock.style.display = (trigger === 'comment' || trigger === 'both') ? '' : 'none';
+        dmBlock.style.display = (trigger === 'dm' || trigger === 'both') ? '' : 'none';
+    }
+    document.getElementById('autoTrigger').addEventListener('change', updateResponseBlocksForTrigger);
+    updateResponseBlocksForTrigger();
 
     // Update review summary
     function updateReview() {
@@ -2083,7 +2130,11 @@
         const type = triggerRaw;
         
         const keywords = document.getElementById('kwInput').value.split(',').map(k => k.trim()).filter(Boolean);
-        const variations = Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean);
+        // Comment replies: message + up to 2 extra variations (3 total), one
+        // is picked at random per matching comment.
+        const commentVariations = Array.from(document.querySelectorAll('#variationsContainer textarea')).map(t => t.value.trim()).filter(Boolean);
+        // DM replies: a single fixed message, independent from the comment message/variations.
+        const dmMessage = document.getElementById('dmReplyMessage').value.trim();
         
         const responseType = document.getElementById('responseType').value;
         const replyLocation = document.getElementById('replyLocation').value;
@@ -2092,34 +2143,30 @@
         const triggerType = document.getElementById('autoTrigger').value;
         
         if (responseType === 'text') {
-            // Build separate configurations for comment and DM based on trigger type
-            const baseConfig = {
+            // Comment and DM each get their own independent config — comment
+            // supports variations, DM is always a single fixed message.
+            const commentConfig = {
                 type: 'text',
                 message: document.getElementById('replyMessage').value.trim(),
-                variations: variations,
+                variations: commentVariations,
                 system_prompt: document.getElementById('aiSystemPromptStep3')?.value?.trim() || null
             };
-            
-            if (triggerType === 'both') {
-                // For 'both' trigger type, create separate comment and DM configs
-                response_data = {
-                    type: 'text',
-                    comment: { ...baseConfig },
-                    dm: { 
-                        type: 'text',
-                        message: baseConfig.message,
-                        variations: baseConfig.variations,
-                        system_prompt: baseConfig.system_prompt
-                    }
-                };
-            } else {
-                // For single trigger type, use the trigger type as key
-                response_data = {
-                    type: 'text',
-                    [triggerType]: { ...baseConfig },
-                    general: { ...baseConfig }  // fallback
-                };
+            const dmConfig = {
+                type: 'text',
+                message: dmMessage,
+                variations: [], // DMs never use variations
+                system_prompt: document.getElementById('aiSystemPromptStep3')?.value?.trim() || null
+            };
+
+            response_data = { type: 'text' };
+            if (triggerType === 'comment' || triggerType === 'both') {
+                response_data.comment = commentConfig;
             }
+            if (triggerType === 'dm' || triggerType === 'both') {
+                response_data.dm = dmConfig;
+            }
+            // Fallback used by any legacy/general lookups
+            response_data.general = triggerType === 'dm' ? dmConfig : commentConfig;
         } else if (responseType === 'button') {
             const buttonConfig = {
                 type: 'button',

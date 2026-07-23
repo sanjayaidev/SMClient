@@ -87,6 +87,13 @@ async function upsertConnection(pool, userId, { platform, account_name, account_
 // Facebook Login for Business + Page-linked IG
 // (mirrors fb-login-test.js: pages_show_list -> instagram_basic)
 // ===========================================================
+// Note on "personal profile" posting: Meta's Graph API does not support
+// publishing feed posts, comments, or messages to a personal profile for
+// standard apps — that capability (the old `publish_actions` permission)
+// was removed for public apps years ago. Everything this app can automate
+// (posting, comment replies, DMs) has to go through a Facebook Page, so
+// there is no personal-profile option to add here — only a choice of
+// *which* Page, when the user manages more than one.
 async function finishFacebook(pool, userId, code, redirectUri, config) {
   const tokenRes = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token`, {
     params: { client_id: config.clientId, client_secret: config.clientSecret, redirect_uri: redirectUri, code },
@@ -104,13 +111,43 @@ async function finishFacebook(pool, userId, code, redirectUri, config) {
   const userToken = longRes.data.access_token;
   const expiresAt = longRes.data.expires_in ? new Date(Date.now() + longRes.data.expires_in * 1000) : null;
 
-  // pages_show_list
+  // pages_show_list — fetch ALL Pages this user manages, not just the first.
   const pagesRes = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/me/accounts`, {
     params: { fields: 'id,name,instagram_business_account,access_token', access_token: userToken },
   });
-  const page = pagesRes.data.data && pagesRes.data.data[0];
-  if (!page) throw new Error('No Facebook Pages found for this account — is it a Page admin?');
+  const pages = pagesRes.data.data || [];
+  if (!pages.length) throw new Error('No Facebook Pages found for this account — is it a Page admin?');
 
+  if (pages.length > 1) {
+    // Multiple Pages: don't silently guess which one the user wants — hand
+    // back a selection token so the callback route can show a picker.
+    return {
+      needsPageSelection: true,
+      selectionToken: jwt.sign(
+        {
+          sub: userId,
+          platform: 'facebook',
+          expiresAt,
+          pages: pages.map(p => ({
+            id: p.id,
+            name: p.name,
+            access_token: p.access_token,
+            instagram_business_account: p.instagram_business_account || null,
+          })),
+        },
+        JWT_SECRET,
+        { expiresIn: '10m' }
+      ),
+      pages,
+    };
+  }
+
+  return finishFacebookPage(pool, userId, pages[0], expiresAt);
+}
+
+// Completes the connection for a single, already-chosen Page (used both for
+// the single-Page case above and for the picker's follow-up selection).
+async function finishFacebookPage(pool, userId, page, expiresAt) {
   const fbConnection = await upsertConnection(pool, userId, {
     platform: 'facebook',
     account_name: page.name,
@@ -352,10 +389,76 @@ function oauthRouter(pool) {
     const redirectUri = `${APP_BASE_URL}/api/connections/${platform}/callback`;
     try {
       const saved = await FINISHERS[platform](pool, payload.sub, code, redirectUri, config);
+      if (saved && saved.needsPageSelection) {
+        return res.send(renderPagePickerHtml(saved.pages, saved.selectionToken));
+      }
       res.redirect(`/dashboard.html?connected=${encodeURIComponent(saved.platform)}`);
     } catch (err) {
       const message = err.response ? JSON.stringify(err.response.data) : err.message;
       res.redirect(`/dashboard.html?conn_error=${encodeURIComponent(message)}`);
+    }
+  });
+
+  // Renders a minimal, dependency-free picker page — no separate frontend
+  // build step needed for what's a one-time, rarely-seen interstitial.
+  function renderPagePickerHtml(pages, selectionToken) {
+    const options = pages.map(p =>
+      `<button class="page-btn" data-id="${p.id}" style="display:block;width:100%;text-align:left;padding:14px 16px;margin:8px 0;border:1px solid #ddd;border-radius:8px;background:#fff;font:inherit;font-size:15px;cursor:pointer;">${(p.name || p.id).replace(/</g, '&lt;')}</button>`
+    ).join('');
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Choose a Facebook Page</title></head>
+<body style="font-family:-apple-system,sans-serif;max-width:480px;margin:60px auto;padding:0 20px;">
+  <h2>Which Page should this connect to?</h2>
+  <p style="color:#666;">Your Facebook account manages more than one Page. Pick the one you want automations, posting, and comment/DM replies to use.</p>
+  <div id="pageList">${options}</div>
+  <p id="err" style="color:#c00;"></p>
+  <script>
+    document.getElementById('pageList').addEventListener('click', async (e) => {
+      const btn = e.target.closest('.page-btn');
+      if (!btn) return;
+      document.querySelectorAll('.page-btn').forEach(b => b.disabled = true);
+      try {
+        const res = await fetch('/api/connections/facebook/select-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selectionToken: ${JSON.stringify(selectionToken)}, pageId: btn.dataset.id })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not connect that Page');
+        window.location = data.redirect;
+      } catch (err) {
+        document.getElementById('err').textContent = err.message;
+        document.querySelectorAll('.page-btn').forEach(b => b.disabled = false);
+      }
+    });
+  </script>
+</body></html>`;
+  }
+
+  // Finalizes the connection once the user has picked a Page from the
+  // picker above. Trusts the signed selectionToken (issued only right after
+  // a real OAuth exchange) rather than re-hitting Graph, since it already
+  // carries each Page's access_token from /me/accounts.
+  r.post('/facebook/select-page', async (req, res) => {
+    const { selectionToken, pageId } = req.body || {};
+    if (!selectionToken || !pageId) {
+      return res.status(400).json({ error: 'selectionToken and pageId are required' });
+    }
+    let payload;
+    try {
+      payload = jwt.verify(selectionToken, JWT_SECRET);
+    } catch {
+      return res.status(400).json({ error: 'This selection has expired — please reconnect Facebook and try again.' });
+    }
+    const page = (payload.pages || []).find(p => String(p.id) === String(pageId));
+    if (!page) {
+      return res.status(400).json({ error: 'That Page was not part of the original selection.' });
+    }
+    try {
+      const saved = await finishFacebookPage(pool, payload.sub, page, payload.expiresAt ? new Date(payload.expiresAt) : null);
+      res.json({ redirect: `/dashboard.html?connected=${encodeURIComponent(saved.platform)}` });
+    } catch (err) {
+      res.status(500).json({ error: err.response ? JSON.stringify(err.response.data) : err.message });
     }
   });
 

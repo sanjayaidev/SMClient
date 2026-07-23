@@ -13,17 +13,20 @@ function findMatch(automations, { platform, triggerType, text, mediaId }) {
     
     const platforms = a.platforms || [];
     if (platforms.length && !platforms.includes(platform)) return false;
-    // If this automation is scoped to specific posts per-platform, only match
-    // triggers whose media id corresponds to the post for that platform.
-    // target_published_ids takes precedence over target_post_id for multi-platform
-    // automations where you want different posts on each platform.
-    if (a.target_published_ids && Object.keys(a.target_published_ids).length > 0) {
-      const targetId = a.target_published_ids[platform];
-      if (!targetId || !mediaId || String(targetId) !== String(mediaId)) return false;
-    } else if (a.target_post_id) {
-      // Fallback to legacy single-post targeting
-      const targetId = (a.target_published_ids || {})[platform];
-      if (!targetId || !mediaId || String(targetId) !== String(mediaId)) return false;
+    // If this automation is scoped to a specific published post on this
+    // platform, only match triggers whose media id corresponds to it.
+    // Important: only ENFORCE this when we actually have a published id to
+    // check against for this platform. If target_published_ids has no entry
+    // for this platform (e.g. the post was never tracked/published there,
+    // or this automation predates per-platform targeting), there is nothing
+    // reliable to compare mediaId to — treat the automation as unscoped for
+    // this platform rather than blocking every match. Previously this branch
+    // referenced target_published_ids from inside its own "is empty" case,
+    // which meant it always evaluated to "no target" and silently rejected
+    // every trigger for scoped automations lacking recorded published ids.
+    const targetId = (a.target_published_ids || {})[platform];
+    if (targetId) {
+      if (!mediaId || String(targetId) !== String(mediaId)) return false;
     }
     const keywords = a.keywords || [];
     if (!keywords.length) return false; // require at least one keyword — no accidental catch-all
