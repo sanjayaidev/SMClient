@@ -278,6 +278,22 @@
   }
   .empty-text { font-size: 14px; }
 
+  .insights-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .stat-value.is-loading {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
   .hidden { display: none !important; }
 
   @media (max-width: 768px) {
@@ -337,6 +353,8 @@
       </div>
     </div>
 
+    <div class="insights-error" data-error="ig" style="display:none;"></div>
+
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Followers</div>
@@ -392,6 +410,8 @@
         <div class="page-subtitle">Overview of your Facebook page performance</div>
       </div>
     </div>
+
+    <div class="insights-error" data-error="fb" style="display:none;"></div>
 
     <div class="stats-grid">
       <div class="stat-card">
@@ -449,6 +469,8 @@
       </div>
     </div>
 
+    <div class="insights-error" data-error="th" style="display:none;"></div>
+
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Followers</div>
@@ -496,21 +518,31 @@
 </main>
 
 <script>
-  // Sample data (replace with real API data)
+  // Live state, populated from /api/insights/* — starts empty/loading rather
+  // than hard-coded zeros so the UI can distinguish "no data yet" from
+  // "confirmed zero" from "failed to load".
   const data = {
     instagram: {
       stats: { followers: 0, reach: 0, engagement: 0, impressions: 0 },
-      posts: []
+      posts: [],
+      loading: true,
+      error: null
     },
     facebook: {
       stats: { followers: 0, reach: 0, engagement: 0, impressions: 0 },
-      posts: []
+      posts: [],
+      loading: true,
+      error: null
     },
     threads: {
       stats: { followers: 0, views: 0, likes: 0, reposts: 0 },
-      posts: []
+      posts: [],
+      loading: true,
+      error: null
     }
   };
+
+  const PREFIX = { instagram: 'ig', facebook: 'fb', threads: 'th' };
 
   // Platform switching
   const navItems = document.querySelectorAll('.nav-item[data-platform]');
@@ -538,23 +570,44 @@
   // Render stats
   function renderStats() {
     // Instagram
-    document.querySelector('[data-stat="ig-followers"]').textContent = formatNumber(data.instagram.stats.followers);
-    document.querySelector('[data-stat="ig-reach"]').textContent = formatNumber(data.instagram.stats.reach);
-    document.querySelector('[data-stat="ig-engagement"]').textContent = formatNumber(data.instagram.stats.engagement);
-    document.querySelector('[data-stat="ig-impressions"]').textContent = formatNumber(data.instagram.stats.impressions);
+    document.querySelector('[data-stat="ig-followers"]').textContent = fmtStat(data.instagram, data.instagram.stats.followers);
+    document.querySelector('[data-stat="ig-reach"]').textContent = fmtStat(data.instagram, data.instagram.stats.reach);
+    document.querySelector('[data-stat="ig-engagement"]').textContent = fmtStat(data.instagram, data.instagram.stats.engagement);
+    document.querySelector('[data-stat="ig-impressions"]').textContent = fmtStat(data.instagram, data.instagram.stats.impressions);
 
     // Facebook
-    document.querySelector('[data-stat="fb-followers"]').textContent = formatNumber(data.facebook.stats.followers);
-    document.querySelector('[data-stat="fb-reach"]').textContent = formatNumber(data.facebook.stats.reach);
-    document.querySelector('[data-stat="fb-engagement"]').textContent = formatNumber(data.facebook.stats.engagement);
-    document.querySelector('[data-stat="fb-impressions"]').textContent = formatNumber(data.facebook.stats.impressions);
+    document.querySelector('[data-stat="fb-followers"]').textContent = fmtStat(data.facebook, data.facebook.stats.followers);
+    document.querySelector('[data-stat="fb-reach"]').textContent = fmtStat(data.facebook, data.facebook.stats.reach);
+    document.querySelector('[data-stat="fb-engagement"]').textContent = fmtStat(data.facebook, data.facebook.stats.engagement);
+    document.querySelector('[data-stat="fb-impressions"]').textContent = fmtStat(data.facebook, data.facebook.stats.impressions);
 
     // Threads
-    document.querySelector('[data-stat="th-followers"]').textContent = formatNumber(data.threads.stats.followers);
-    document.querySelector('[data-stat="th-views"]').textContent = formatNumber(data.threads.stats.views);
-    document.querySelector('[data-stat="th-likes"]').textContent = formatNumber(data.threads.stats.likes);
-    document.querySelector('[data-stat="th-reposts"]').textContent = formatNumber(data.threads.stats.reposts);
+    document.querySelector('[data-stat="th-followers"]').textContent = fmtStat(data.threads, data.threads.stats.followers);
+    document.querySelector('[data-stat="th-views"]').textContent = fmtStat(data.threads, data.threads.stats.views);
+    document.querySelector('[data-stat="th-likes"]').textContent = fmtStat(data.threads, data.threads.stats.likes);
+    document.querySelector('[data-stat="th-reposts"]').textContent = fmtStat(data.threads, data.threads.stats.reposts);
+
+    // Error banners
+    ['instagram', 'facebook', 'threads'].forEach(platform => {
+      const prefix = PREFIX[platform];
+      const banner = document.querySelector(`[data-error="${prefix}"]`);
+      if (!banner) return;
+      if (data[platform].error) {
+        banner.textContent = data[platform].error;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    });
   }
+
+  function fmtStat(platformData, value) {
+    if (platformData.loading) return '…';
+    if (platformData.error) return '—';
+    return formatNumber(value);
+  }
+
+
 
   // Render post rows
   function renderPosts() {
@@ -607,17 +660,56 @@
     return div.innerHTML;
   }
 
+  // Fetch account-level + post-level insights for one platform and update
+  // the shared `data` object in place.
+  async function loadPlatform(platform) {
+    const bucket = data[platform];
+    bucket.loading = true;
+    bucket.error = null;
+    renderStats();
+
+    try {
+      const [accountRes, postsRes] = await Promise.all([
+        fetch(`/api/insights/account?platform=${platform}`, { credentials: 'include' }),
+        fetch(`/api/insights/posts?platform=${platform}`, { credentials: 'include' })
+      ]);
+
+      const accountBody = await accountRes.json().catch(() => ({}));
+      const postsBody = await postsRes.json().catch(() => ({}));
+
+      if (!accountRes.ok) {
+        throw new Error(accountBody.details || accountBody.error || `Request failed (${accountRes.status})`);
+      }
+      if (!postsRes.ok) {
+        throw new Error(postsBody.details || postsBody.error || `Request failed (${postsRes.status})`);
+      }
+
+      Object.assign(bucket.stats, accountBody.data || {});
+      bucket.posts = postsBody.data || [];
+    } catch (err) {
+      // Surface the real reason (no connected account, expired token, missing
+      // permission, etc.) instead of quietly leaving everything at 0.
+      bucket.error = err.message || 'Failed to load insights';
+    } finally {
+      bucket.loading = false;
+      renderStats();
+      renderPosts();
+    }
+  }
+
+  async function loadAllPlatforms() {
+    await Promise.all(['instagram', 'facebook', 'threads'].map(loadPlatform));
+  }
+
   // Refresh handler
   document.getElementById('refreshBtn').addEventListener('click', () => {
-    // Hook up your real API call here
-    console.log('Refreshing insights...');
-    renderStats();
-    renderPosts();
+    loadAllPlatforms();
   });
 
-  // Initial render
+  // Initial render (loading state) + kick off real data fetch
   renderStats();
   renderPosts();
+  loadAllPlatforms();
 </script>
 
 </body>
