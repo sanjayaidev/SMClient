@@ -46,14 +46,17 @@ async function sendDM(token, pageId, recipientId, text) {
   return res.message_id;
 }
 
-// Sends a DM privately in response to a specific comment, using the
-// /{comment-id}/private_replies edge. This is the correct (and often the
-// only permitted) way to auto-DM someone who commented but hasn't messaged
-// the Page before — a regular /messages send (sendDM above) requires an
-// existing conversation thread, which a first-time commenter won't have.
-async function sendPrivateReply(token, commentId, message) {
-  const res = await post(`${BASE}/${commentId}/private_replies`, { message }, token);
-  return res.id;
+// Sends a DM privately in response to a specific comment. Per Meta's docs,
+// this goes through the SAME /messages endpoint as a normal DM (sendDM
+// above) — addressed by recipient: { comment_id } instead of { id }. There
+// is no separate /{comment-id}/private_replies edge; posting there returns
+// a misleading "object does not exist" error (code 100).
+async function sendPrivateReply(token, pageId, commentId, message) {
+  const res = await post(`${BASE}/${pageId}/messages`, {
+    recipient: JSON.stringify({ comment_id: commentId }),
+    message: JSON.stringify({ text: message }),
+  }, token);
+  return res.message_id;
 }
 
 module.exports = { publishPost, replyToComment, sendDM, sendPrivateReply, listRecentPosts };

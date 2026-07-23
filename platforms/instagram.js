@@ -52,17 +52,20 @@ async function sendDM(token, igId, recipientId, text) {
   return res.message_id;
 }
 
-// Sends a DM privately in response to a specific comment, using the
-// /{ig-comment-id}/private_replies edge. This is the correct (and often the
-// only permitted) way to auto-DM someone who commented but hasn't messaged
-// the account before — a regular /messages send (sendDM above) requires an
-// existing conversation thread. This is also what "reply via DM" / "check
-// your DM" comment automations rely on; without it Instagram shows the
-// commenter a pending "..." conversation that never resolves, since nothing
-// ever actually gets sent.
-async function sendPrivateReply(token, commentId, message) {
-  const res = await post(`${BASE}/${commentId}/private_replies`, { message }, token);
-  return res.id;
+// Sends a DM privately in response to a specific comment. Per Meta's docs
+// (Messenger Platform > Instagram > Private Replies), this goes through the
+// SAME /messages endpoint as a normal DM (sendDM above) — the only
+// difference is the recipient is addressed by { comment_id } instead of
+// { id }. There is no separate /{comment-id}/private_replies edge for
+// Instagram; posting there returns a misleading "object does not exist"
+// error (code 100) since /replies and /private_replies aren't valid edges
+// on a comment object.
+async function sendPrivateReply(token, igId, commentId, message) {
+  const res = await post(`${BASE}/${igId}/messages`, {
+    recipient: JSON.stringify({ comment_id: commentId }),
+    message: JSON.stringify({ text: message }),
+  }, token);
+  return res.message_id;
 }
 
 // Recent media already published to this IG business account, straight from

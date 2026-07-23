@@ -461,7 +461,7 @@ function router(pool) {
             const dmResult = await getResponseForTrigger(match, 'dm', platform, text);
             const dmReply = dmResult?.text;
             if (dmReply) {
-              await facebook.sendPrivateReply(token, replyTargetId, dmReply);
+              await facebook.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply);
               await logAutomationEvent(pool, {
                 platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
                 automationId: match.id, automationName: match.name,
@@ -698,7 +698,7 @@ function router(pool) {
             const dmReply = dmResult?.text;
             if (dmReply) {
               console.log(`📤 Sending ${platform} private reply (DM) for comment ${replyTargetId} on behalf of account ${conn.account_id || conn.page_id}`);
-              await instagram.sendPrivateReply(token, replyTargetId, dmReply);
+              await instagram.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply);
               await logAutomationEvent(pool, {
                 platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
                 automationId: match.id, automationName: match.name,
