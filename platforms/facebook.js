@@ -46,4 +46,14 @@ async function sendDM(token, pageId, recipientId, text) {
   return res.message_id;
 }
 
-module.exports = { publishPost, replyToComment, sendDM, listRecentPosts };
+// Sends a DM privately in response to a specific comment, using the
+// /{comment-id}/private_replies edge. This is the correct (and often the
+// only permitted) way to auto-DM someone who commented but hasn't messaged
+// the Page before — a regular /messages send (sendDM above) requires an
+// existing conversation thread, which a first-time commenter won't have.
+async function sendPrivateReply(token, commentId, message) {
+  const res = await post(`${BASE}/${commentId}/private_replies`, { message }, token);
+  return res.id;
+}
+
+module.exports = { publishPost, replyToComment, sendDM, sendPrivateReply, listRecentPosts };

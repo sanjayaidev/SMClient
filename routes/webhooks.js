@@ -410,28 +410,6 @@ function router(pool) {
       }
       
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
-      
-      const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
-      const reply = responseResult?.text;
-      
-      if (!reply) {
-        await logAutomationEvent(pool, {
-          platform,
-          triggerType,
-          triggerText: text,
-          mediaId,
-          senderId,
-          accountId,
-          automationId: match.id,
-          automationName: match.name,
-          responseType: null,
-          responseContent: null,
-          replyLocation: null,
-          success: false,
-          errorMessage: 'No response generated'
-        });
-        return;
-      }
 
       const conn = await getConnection(platform, accountId);
       if (!conn) { 
@@ -445,9 +423,9 @@ function router(pool) {
           accountId,
           automationId: match.id,
           automationName: match.name,
-          responseType: responseResult.type,
-          responseContent: reply,
-          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          responseType: null,
+          responseContent: null,
+          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
           success: false,
           errorMessage: `No connected ${platform} account`
         });
@@ -457,23 +435,53 @@ function router(pool) {
 
       try {
         if (triggerType === 'comment') {
-          await facebook.replyToComment(token, replyTargetId, reply);
-          await logAutomationEvent(pool, {
-            platform,
-            triggerType,
-            triggerText: text,
-            mediaId,
-            senderId: null,
-            accountId,
-            automationId: match.id,
-            automationName: match.name,
-            responseType: responseResult.type,
-            responseContent: reply,
-            replyLocation: 'comment',
-            success: true,
-            errorMessage: null
-          });
+          // See matching comment in the Instagram handler below: reply_location
+          // determines whether we post a public reply, send a private-reply
+          // DM, or both — this was previously ignored entirely, so 'dm'/'both'
+          // automations never sent anything even though they matched.
+          const replyLocation = match.reply_location || 'comment';
+          const wantsCommentReply = replyLocation === 'comment' || replyLocation === 'both';
+          const wantsDmReply = replyLocation === 'dm' || replyLocation === 'both';
+
+          if (wantsCommentReply) {
+            const commentResult = await getResponseForTrigger(match, 'comment', platform, text);
+            const commentReply = commentResult?.text;
+            if (commentReply) {
+              await facebook.replyToComment(token, replyTargetId, commentReply);
+              await logAutomationEvent(pool, {
+                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                automationId: match.id, automationName: match.name,
+                responseType: commentResult.type, responseContent: commentReply,
+                replyLocation: 'comment', success: true, errorMessage: null
+              });
+            }
+          }
+
+          if (wantsDmReply) {
+            const dmResult = await getResponseForTrigger(match, 'dm', platform, text);
+            const dmReply = dmResult?.text;
+            if (dmReply) {
+              await facebook.sendPrivateReply(token, replyTargetId, dmReply);
+              await logAutomationEvent(pool, {
+                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                automationId: match.id, automationName: match.name,
+                responseType: dmResult.type, responseContent: dmReply,
+                replyLocation: 'dm', success: true, errorMessage: null
+              });
+            }
+          }
         } else if (triggerType === 'dm') {
+          const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
+          const reply = responseResult?.text;
+          if (!reply) {
+            await logAutomationEvent(pool, {
+              platform, triggerType, triggerText: text, mediaId, senderId, accountId,
+              automationId: match.id, automationName: match.name,
+              responseType: null, responseContent: null, replyLocation: null,
+              success: false, errorMessage: 'No response generated'
+            });
+            return;
+          }
           await facebook.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
           await logAutomationEvent(pool, {
             platform,
@@ -503,17 +511,15 @@ function router(pool) {
           accountId,
           automationId: match.id,
           automationName: match.name,
-          responseType: responseResult?.type,
-          responseContent: reply,
-          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          responseType: null,
+          responseContent: null,
+          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
           success: false,
           errorMessage: errorMsg
         });
       }
     }
   });
-
-  // ===== Instagram Webhook =====
   r.get('/webhooks/instagram', (req, res) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
@@ -635,30 +641,6 @@ function router(pool) {
       
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       addToDebugLog({ platform, event: 'automation_matched', automationId: match.id, automationName: match.name, triggerType });
-      
-      const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
-      const reply = responseResult?.text;
-      
-      if (!reply) {
-        console.log(`⚠️  No response generated for automation "${match.name}"`);
-        addToDebugLog({ platform, event: 'no_response_generated', automationId: match.id, triggerType, responseData: match.response_data, variations: match.variations, ai_prompt: match.ai_prompt });
-        await logAutomationEvent(pool, {
-          platform,
-          triggerType,
-          triggerText: text,
-          mediaId,
-          senderId,
-          accountId,
-          automationId: match.id,
-          automationName: match.name,
-          responseType: null,
-          responseContent: null,
-          replyLocation: null,
-          success: false,
-          errorMessage: 'No response generated'
-        });
-        return;
-      }
 
       const conn = await getConnection(platform, accountId);
       if (!conn) { 
@@ -672,42 +654,72 @@ function router(pool) {
           accountId,
           automationId: match.id,
           automationName: match.name,
-          responseType: responseResult.type,
-          responseContent: reply,
-          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          responseType: null,
+          responseContent: null,
+          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
           success: false,
           errorMessage: `No connected ${platform} account`
         });
         return; 
       }
       const token = decrypt(conn.access_token);
-      console.log(`📤 Sending ${platform} ${triggerType} reply on behalf of account ${conn.account_id || conn.page_id}`);
 
       try {
         if (triggerType === 'comment') {
-          if (platform === 'instagram') {
-            await instagram.replyToComment(token, replyTargetId, reply);
-          } else if (platform === 'facebook') {
-            await facebook.replyToComment(token, replyTargetId, reply);
-          } else if (platform === 'threads') {
-            await threads.replyToThread(token, conn.account_id, replyTargetId, reply);
+          // reply_location controls whether a comment trigger gets a public
+          // comment reply, a private DM reply, or both. Previously this was
+          // never checked — every comment trigger only ever got a public
+          // reply, even when the automation was configured for 'dm' or
+          // 'both'. That's why "reply via DM" automations silently never
+          // sent anything: Instagram shows the commenter a pending "..."
+          // conversation (expecting a private reply within the response
+          // window) that then never resolves, because nothing was ever sent.
+          const replyLocation = match.reply_location || 'comment';
+          const wantsCommentReply = replyLocation === 'comment' || replyLocation === 'both';
+          const wantsDmReply = replyLocation === 'dm' || replyLocation === 'both';
+
+          if (wantsCommentReply) {
+            const commentResult = await getResponseForTrigger(match, 'comment', platform, text);
+            const commentReply = commentResult?.text;
+            if (commentReply) {
+              console.log(`📤 Sending ${platform} comment reply on behalf of account ${conn.account_id || conn.page_id}`);
+              await instagram.replyToComment(token, replyTargetId, commentReply);
+              await logAutomationEvent(pool, {
+                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                automationId: match.id, automationName: match.name,
+                responseType: commentResult.type, responseContent: commentReply,
+                replyLocation: 'comment', success: true, errorMessage: null
+              });
+            }
           }
-          await logAutomationEvent(pool, {
-            platform,
-            triggerType,
-            triggerText: text,
-            mediaId,
-            senderId: null,
-            accountId,
-            automationId: match.id,
-            automationName: match.name,
-            responseType: responseResult.type,
-            responseContent: reply,
-            replyLocation: 'comment',
-            success: true,
-            errorMessage: null
-          });
+
+          if (wantsDmReply) {
+            const dmResult = await getResponseForTrigger(match, 'dm', platform, text);
+            const dmReply = dmResult?.text;
+            if (dmReply) {
+              console.log(`📤 Sending ${platform} private reply (DM) for comment ${replyTargetId} on behalf of account ${conn.account_id || conn.page_id}`);
+              await instagram.sendPrivateReply(token, replyTargetId, dmReply);
+              await logAutomationEvent(pool, {
+                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                automationId: match.id, automationName: match.name,
+                responseType: dmResult.type, responseContent: dmReply,
+                replyLocation: 'dm', success: true, errorMessage: null
+              });
+            }
+          }
         } else if (triggerType === 'dm') {
+          const responseResult = await getResponseForTrigger(match, triggerType, platform, text);
+          const reply = responseResult?.text;
+          if (!reply) {
+            await logAutomationEvent(pool, {
+              platform, triggerType, triggerText: text, mediaId, senderId, accountId,
+              automationId: match.id, automationName: match.name,
+              responseType: null, responseContent: null, replyLocation: null,
+              success: false, errorMessage: 'No response generated'
+            });
+            return;
+          }
+          console.log(`📤 Sending ${platform} dm reply on behalf of account ${conn.account_id || conn.page_id}`);
           if (platform === 'instagram') {
             await instagram.sendDM(token, conn.account_id || conn.page_id, senderId, reply);
           } else if (platform === 'facebook') {
@@ -742,9 +754,9 @@ function router(pool) {
           accountId,
           automationId: match.id,
           automationName: match.name,
-          responseType: responseResult?.type,
-          responseContent: reply,
-          replyLocation: triggerType === 'comment' ? 'comment' : 'dm',
+          responseType: null,
+          responseContent: null,
+          replyLocation: triggerType === 'comment' ? (match.reply_location || 'comment') : 'dm',
           success: false,
           errorMessage: errorMsg
         });
