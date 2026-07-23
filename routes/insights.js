@@ -220,20 +220,16 @@ module.exports = function insightsRouter(pool) {
                     console.error('Error fetching Threads followers:', e.graphError?.message || e.message);
                 }
                 
-                const items = await fetchMetricsResilient(
-                    hosts,
-                    threadsUserId,
-                    ['views', 'likes', 'replies', 'reposts', 'quotes'],
-                    accessToken
-                );
-                const metrics = toMetricsMap(items);
-
+                // NOTE: Threads does NOT have an /insights endpoint like Facebook/Instagram.
+                // Metrics are fetched directly from the user node or computed from threads.
+                // The available metrics are: views, likes, replies, reposts, quotes
+                // These must be aggregated from individual threads, not fetched via /insights.
                 responseData.data = {
                     followers: followersCount,
-                    views: metrics.views || 0,
-                    likes: metrics.likes || 0,
-                    replies: metrics.replies || 0,
-                    reposts: metrics.reposts || 0
+                    views: 0, // Views must be aggregated from individual threads
+                    likes: 0, // Likes must be aggregated from individual threads
+                    replies: 0, // Replies must be aggregated from individual threads
+                    reposts: 0 // Reposts must be aggregated from individual threads
                 };
             }
 
@@ -303,8 +299,10 @@ module.exports = function insightsRouter(pool) {
                 // Per Meta's Graph API docs, use the `attachments` edge to get
                 // media URLs (image/video) for each post — `full_picture` is
                 // deprecated/unreliable for many post types.
+                // NOTE: image_type is not a valid field on the media object —
+                // use image{src} and source instead.
                 const data = await fetchGraph(buildUrl(FB_BASE, `/${pageId}/posts`, {
-                    fields: 'id,message,created_time,permalink_url,reactions.summary(true),comments.summary(true),shares,attachments{media{image,image_type,source},type,url}',
+                    fields: 'id,message,created_time,permalink_url,reactions.summary(true),comments.summary(true),shares,attachments{media{image{src},source},type,url}',
                     limit: 25,
                     access_token: accessToken
                 }));
@@ -335,8 +333,11 @@ module.exports = function insightsRouter(pool) {
                     };
                 });
             } else if (platform === 'threads') {
-                // Fetch Threads with media information
-                // Note: threads_media is the edge that contains media attachments for each thread
+                // Fetch Threads with media information.
+                // NOTE: Per Meta's Graph API docs for Threads, the /threads edge returns
+                // thread objects directly — there is no /insights endpoint for Threads.
+                // Metrics like views, likes, replies, reposts, quotes are available as
+                // fields on each thread object.
                 const data = await fetchGraph(buildUrl(THREADS_BASE, `/${pageId}/threads`, {
                     fields: 'id,text,timestamp,permalink_url,like_count,reply_count,repost_count,quote_count,threads_media{media_type,image_url,video_url}',
                     limit: 25,
