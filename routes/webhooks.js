@@ -31,8 +31,8 @@ function addToDebugLog(event) {
 async function logAutomationEvent(pool, data) {
   try {
     await pool.query(
-      `INSERT INTO automation_logs 
-       (platform, trigger_type, trigger_text, media_id, sender_id, account_id, 
+      `INSERT INTO automation_logs
+       (platform, trigger_type, trigger_text, media_id, sender_id, account_id,
         automation_id, automation_name, response_type, response_content, reply_location, success, error_message)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
@@ -68,18 +68,18 @@ function getCommentVariations(variations) {
 async function getResponseForTrigger(automation, triggerType, platform, triggerText) {
   // First check response_data for platform-specific and trigger-specific configuration
   const responseData = automation.response_data || {};
-  
+
   // For comments: check for comment-specific config first, then fallback to general
   if (triggerType === 'comment') {
     const commentConfig = responseData.comment || responseData.general || responseData;
-    
+
     // Check AI prompt first
     const aiPrompt = commentConfig.system_prompt || automation.ai_prompt;
     if (aiPrompt) {
       const aiText = await generateReply(aiPrompt);
       if (aiText) return { text: aiText, type: 'ai' };
     }
-    
+
     // Check for comment variations (up to 3)
     const commentVariations = commentConfig.variations || automation.variations || [];
     if (commentVariations.length > 0) {
@@ -90,7 +90,7 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
         return { text: selectedVariation, type: 'variation' };
       }
     }
-    
+
     // Fallback to any variations
     const allVariations = automation.variations || [];
     if (allVariations.length > 0) {
@@ -103,33 +103,33 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
     if (commentConfig.type === 'text' && commentConfig.message) {
       return { text: commentConfig.message, type: 'text' };
     }
-    
+
     // Check for button or media responses
     if (commentConfig.type === 'button' && commentConfig.button_text && commentConfig.button_url) {
-      return { 
-        text: commentConfig.message || commentConfig.button_text, 
+      return {
+        text: commentConfig.message || commentConfig.button_text,
         type: 'button',
         buttonText: commentConfig.button_text,
         buttonUrl: commentConfig.button_url
       };
     }
-    
+
     if (commentConfig.type === 'media' && commentConfig.media_url) {
-      return { 
-        text: commentConfig.caption || '', 
+      return {
+        text: commentConfig.caption || '',
         type: 'media',
         mediaUrl: commentConfig.media_url
       };
     }
   }
-  
+
   // For DMs: handle based on support type per platform
   if (triggerType === 'dm') {
     const dmConfig = responseData.dm || responseData[platform] || responseData.general || responseData;
-    
+
     if (dmConfig.support_type === 'tiered') {
       // Tiered support: escalate based on keywords or conversation history
-      const tier = dmConfig.tiers?.find(t => 
+      const tier = dmConfig.tiers?.find(t =>
         t.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
       );
       if (tier?.response) {
@@ -137,21 +137,21 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
       }
     } else if (dmConfig.support_type === 'categorized') {
       // Categorized support: route based on issue type
-      const category = dmConfig.categories?.find(c => 
+      const category = dmConfig.categories?.find(c =>
         c.keywords?.some(k => (triggerText || '').toLowerCase().includes(k.toLowerCase()))
       );
       if (category?.response) {
         return { text: category.response, type: 'categorized_support' };
       }
     }
-    
+
     // Check AI prompt for DMs
     const aiPrompt = dmConfig.system_prompt || automation.ai_prompt;
     if (aiPrompt) {
       const aiText = await generateReply(aiPrompt);
       if (aiText) return { text: aiText, type: 'ai' };
     }
-    
+
     // Check for DM-specific variations (kept only for backward-compat with
     // automations saved before DMs became message-only; the builder no
     // longer writes dm.variations going forward)
@@ -165,26 +165,26 @@ async function getResponseForTrigger(automation, triggerType, platform, triggerT
     if (dmConfig.type === 'text' && dmConfig.message) {
       return { text: dmConfig.message, type: 'text' };
     }
-    
+
     // Check for button or media responses for DMs
     if (dmConfig.type === 'button' && dmConfig.button_text && dmConfig.button_url) {
-      return { 
-        text: dmConfig.message || dmConfig.button_text, 
+      return {
+        text: dmConfig.message || dmConfig.button_text,
         type: 'button',
         buttonText: dmConfig.button_text,
         buttonUrl: dmConfig.button_url
       };
     }
-    
+
     if (dmConfig.type === 'media' && dmConfig.media_url) {
-      return { 
-        text: dmConfig.caption || '', 
+      return {
+        text: dmConfig.caption || '',
         type: 'media',
         mediaUrl: dmConfig.media_url
       };
     }
   }
-  
+
   return null;
 }
 
@@ -405,12 +405,12 @@ function router(pool) {
         // Extract fromId from the comment data
         const fromId = value.from?.id || null;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
-        await handleTrigger({ 
-          platform, 
-          triggerType: 'comment', 
-          text, 
-          replyTargetId: commentId, 
-          mediaId, 
+        await handleTrigger({
+          platform,
+          triggerType: 'comment',
+          text,
+          replyTargetId: commentId,
+          mediaId,
           accountId: entry.id,
           extraLookupId: fromId
         });
@@ -422,11 +422,11 @@ function router(pool) {
         const text = messaging.message.text;
         const msgId = messaging.message.mid;
         if (await alreadyProcessed(`dm:${msgId}`)) continue;
-        await handleTrigger({ 
-          platform, 
-          triggerType: 'dm', 
-          text, 
-          senderId, 
+        await handleTrigger({
+          platform,
+          triggerType: 'dm',
+          text,
+          senderId,
           accountId: entry.id,
           extraLookupId: null
         });
@@ -435,10 +435,10 @@ function router(pool) {
 
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId, extraLookupId = null }) {
       console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
-      
+
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
-      
+
       if (!match) {
         console.log(`⚠️  No matching automation found for ${platform}/${triggerType}`);
         // Log trigger even if no automation matched
@@ -459,12 +459,12 @@ function router(pool) {
         });
         return;
       }
-      
+
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
 
       const conn = await getConnection(platform, accountId, extraLookupId);
-      if (!conn) { 
-        console.error(`No connected ${platform} account to reply with`); 
+      if (!conn) {
+        console.error(`No connected ${platform} account to reply with`);
         await logAutomationEvent(pool, {
           platform,
           triggerType,
@@ -480,7 +480,7 @@ function router(pool) {
           success: false,
           errorMessage: `No connected ${platform} account`
         });
-        return; 
+        return;
       }
       const token = decrypt(conn.access_token);
 
@@ -498,9 +498,10 @@ function router(pool) {
             const commentResult = await getResponseForTrigger(match, 'comment', platform, text);
             const commentReply = commentResult?.text;
             if (commentReply) {
+              console.log(`📤 Sending ${platform} comment reply on behalf of account ${conn.account_id || conn.page_id}`);
               await facebook.replyToComment(token, replyTargetId, commentReply);
               await logAutomationEvent(pool, {
-                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                platform, triggerType, triggerText: text, mediaId, senderId, accountId,
                 automationId: match.id, automationName: match.name,
                 responseType: commentResult.type, responseContent: commentReply,
                 replyLocation: 'comment', success: true, errorMessage: null
@@ -512,9 +513,10 @@ function router(pool) {
             const dmResult = await getResponseForTrigger(match, 'dm', platform, text);
             const dmReply = dmResult?.text;
             if (dmReply) {
+              console.log(`📤 Sending ${platform} private reply (DM) for comment ${replyTargetId} on behalf of account ${conn.account_id || conn.page_id}`);
               await facebook.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply);
               await logAutomationEvent(pool, {
-                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                platform, triggerType, triggerText: text, mediaId, senderId, accountId,
                 automationId: match.id, automationName: match.name,
                 responseType: dmResult.type, responseContent: dmReply,
                 replyLocation: 'dm', success: true, errorMessage: null
@@ -587,19 +589,19 @@ function router(pool) {
     // Log raw payload for debugging BEFORE signature check
     const rawBody = req.body.toString('utf8');
     console.log('📥 Instagram webhook received - Raw payload:', rawBody.substring(0, 500));
-    addToDebugLog({ 
-      platform: 'instagram', 
-      event: 'webhook_received', 
+    addToDebugLog({
+      platform: 'instagram',
+      event: 'webhook_received',
       headers: req.headers,
       rawPayload: JSON.parse(rawBody || '{}'),
       bodyLength: rawBody.length
     });
-    
+
     // Signature verification with fallback: try IG_SECRET first, then FB_SECRET
     const secretsToTry = [IG_APP_SECRET, FB_APP_SECRET].filter(Boolean);
     let verified = false;
     let usedSecret = null;
-    
+
     for (const secret of secretsToTry) {
       const secretName = secret === FB_APP_SECRET ? 'FB_APP_SECRET' : 'IG_APP_SECRET';
       console.log(`🔐 Trying ${secretName} for Instagram signature verification`);
@@ -609,22 +611,22 @@ function router(pool) {
         break;
       }
     }
-    
+
     if (!verified) {
       console.log('❌ All signature verification attempts failed');
       return res.sendStatus(403);
     }
-    
+
     console.log(`✅ Signature verified using ${usedSecret}`);
     res.sendStatus(200);
 
     let payload;
-    try { 
-      payload = JSON.parse(rawBody); 
-    } catch (err) { 
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (err) {
       console.log(`❌ Failed to parse Instagram webhook payload: ${err.message}`);
       addToDebugLog({ platform: 'instagram', event: 'parse_error', error: err.message, rawBody });
-      return; 
+      return;
     }
 
     const platform = 'instagram';
@@ -643,12 +645,12 @@ function router(pool) {
         // Extract fromId from the comment data (Instagram uses 'from' field)
         const fromId = value.from?.id || null;
         if (await alreadyProcessed(`comment:${commentId}`)) continue;
-        await handleTrigger({ 
-          platform, 
-          triggerType: 'comment', 
-          text, 
-          replyTargetId: commentId, 
-          mediaId, 
+        await handleTrigger({
+          platform,
+          triggerType: 'comment',
+          text,
+          replyTargetId: commentId,
+          mediaId,
           accountId: entry.id,
           extraLookupId: fromId
         });
@@ -660,11 +662,11 @@ function router(pool) {
         const text = messaging.message.text;
         const msgId = messaging.message.mid;
         if (await alreadyProcessed(`dm:${msgId}`)) continue;
-        await handleTrigger({ 
-          platform, 
-          triggerType: 'dm', 
-          text, 
-          senderId, 
+        await handleTrigger({
+          platform,
+          triggerType: 'dm',
+          text,
+          senderId,
           accountId: entry.id,
           extraLookupId: null
         });
@@ -673,21 +675,21 @@ function router(pool) {
 
     async function handleTrigger({ platform, triggerType, text, replyTargetId, senderId, accountId, mediaId, extraLookupId = null }) {
       console.log(`🔔 Webhook trigger: ${platform}/${triggerType} - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
-      addToDebugLog({ 
-        platform, 
-        event: 'trigger_received', 
-        triggerType, 
-        text, 
-        mediaId, 
-        senderId, 
+      addToDebugLog({
+        platform,
+        event: 'trigger_received',
+        triggerType,
+        text,
+        mediaId,
+        senderId,
         accountId,
         replyTargetId,
-        extraLookupId 
+        extraLookupId
       });
-      
+
       const automations = await getActiveAutomations();
       const match = findMatch(automations, { platform, triggerType, text, mediaId });
-      
+
       if (!match) {
         console.log(`⚠️  No matching automation found for ${platform}/${triggerType}`);
         addToDebugLog({ platform, event: 'no_automation_match', triggerType, text, mediaId });
@@ -709,13 +711,13 @@ function router(pool) {
         });
         return;
       }
-      
+
       console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
       addToDebugLog({ platform, event: 'automation_matched', automationId: match.id, automationName: match.name, triggerType });
 
       const conn = await getConnection(platform, accountId, extraLookupId);
-      if (!conn) { 
-        console.error(`No connected ${platform} account to reply with`); 
+      if (!conn) {
+        console.error(`No connected ${platform} account to reply with`);
         await logAutomationEvent(pool, {
           platform,
           triggerType,
@@ -731,7 +733,7 @@ function router(pool) {
           success: false,
           errorMessage: `No connected ${platform} account`
         });
-        return; 
+        return;
       }
       const token = decrypt(conn.access_token);
 
@@ -756,7 +758,7 @@ function router(pool) {
               console.log(`📤 Sending ${platform} comment reply on behalf of account ${conn.account_id || conn.page_id}`);
               await instagram.replyToComment(token, replyTargetId, commentReply, conn);
               await logAutomationEvent(pool, {
-                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                platform, triggerType, triggerText: text, mediaId, senderId, accountId,
                 automationId: match.id, automationName: match.name,
                 responseType: commentResult.type, responseContent: commentReply,
                 replyLocation: 'comment', success: true, errorMessage: null
@@ -771,7 +773,7 @@ function router(pool) {
               console.log(`📤 Sending ${platform} private reply (DM) for comment ${replyTargetId} on behalf of account ${conn.account_id || conn.page_id}`);
               await instagram.sendPrivateReply(token, conn.account_id || conn.page_id, replyTargetId, dmReply, conn);
               await logAutomationEvent(pool, {
-                platform, triggerType, triggerText: text, mediaId, senderId: null, accountId,
+                platform, triggerType, triggerText: text, mediaId, senderId, accountId,
                 automationId: match.id, automationName: match.name,
                 responseType: dmResult.type, responseContent: dmReply,
                 replyLocation: 'dm', success: true, errorMessage: null
@@ -853,19 +855,19 @@ function router(pool) {
     // Log raw payload for debugging BEFORE signature check
     const rawBody = req.body.toString('utf8');
     console.log('📥 Threads webhook received - Raw payload:', rawBody.substring(0, 500));
-    addToDebugLog({ 
-      platform: 'threads', 
-      event: 'webhook_received', 
+    addToDebugLog({
+      platform: 'threads',
+      event: 'webhook_received',
       headers: req.headers,
       rawPayload: JSON.parse(rawBody || '{}'),
       bodyLength: rawBody.length
     });
-    
+
     // Signature verification with fallback: try TH_SECRET first, then IG_SECRET, then FB_SECRET
     const secretsToTry = [TH_APP_SECRET, IG_APP_SECRET, FB_APP_SECRET].filter(Boolean);
     let verified = false;
     let usedSecret = null;
-    
+
     for (const secret of secretsToTry) {
       const secretName = secret === TH_APP_SECRET ? 'TH_APP_SECRET' : secret === IG_APP_SECRET ? 'IG_APP_SECRET' : 'FB_APP_SECRET';
       console.log(`🔐 Trying ${secretName} for Threads signature verification`);
@@ -875,13 +877,13 @@ function router(pool) {
         break;
       }
     }
-    
+
     if (!verified) {
       console.log('❌ All Threads signature verification attempts failed');
       addToDebugLog({ platform: 'threads', event: 'signature_check_failed', reason: 'all_secrets_failed' });
       return res.sendStatus(403);
     }
-    
+
     console.log(`✅ Threads signature verified using ${usedSecret}`);
     res.sendStatus(200);
 
@@ -938,9 +940,9 @@ function router(pool) {
         if (await alreadyProcessed(`threads_reply:${replyId}`)) continue;
 
         console.log(`🔔 Webhook trigger: ${platform}/comment - Text: "${text?.substring(0, 50)}${text?.length > 50 ? '...' : ''}"`);
-        addToDebugLog({ 
-          platform, 
-          event: 'webhook_trigger', 
+        addToDebugLog({
+          platform,
+          event: 'webhook_trigger',
           triggerType: 'comment',
           text,
           replyId,
@@ -950,7 +952,7 @@ function router(pool) {
 
         const automations = await getActiveAutomations();
         const match = findMatch(automations, { platform, triggerType: 'comment', text, mediaId });
-        
+
         if (!match) {
           console.log(`⚠️  No matching automation found for ${platform}/comment`);
           await logAutomationEvent(pool, {
@@ -970,12 +972,12 @@ function router(pool) {
           });
           continue;
         }
-        
+
         console.log(`✅ Automation matched: "${match.name}" (ID: ${match.id})`);
-        
+
         const responseResult = await getResponseForTrigger(match, 'comment', platform, text);
         const reply = responseResult?.text;
-        
+
         if (!reply) {
           await logAutomationEvent(pool, {
             platform,
@@ -996,8 +998,8 @@ function router(pool) {
         }
 
         const conn = await getConnection('threads', accountId, null);
-        if (!conn) { 
-          console.error('No connected Threads account to reply with'); 
+        if (!conn) {
+          console.error('No connected Threads account to reply with');
           await logAutomationEvent(pool, {
             platform,
             triggerType: 'comment',
@@ -1013,7 +1015,7 @@ function router(pool) {
             success: false,
             errorMessage: 'No connected Threads account'
           });
-          continue; 
+          continue;
         }
         const token = decrypt(conn.access_token);
         console.log(`📤 Sending Threads reply to comment ${replyId} on behalf of account ${conn.account_id}`);
@@ -1096,7 +1098,7 @@ function router(pool) {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     const limit = parseInt(req.query.limit) || 50;
     const filteredLog = webhookDebugLog.slice(-limit);
     res.json({ debugLog: filteredLog, totalEvents: webhookDebugLog.length });
@@ -1107,7 +1109,7 @@ function router(pool) {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
+
     webhookDebugLog.length = 0; // Clear the array
     res.json({ success: true, message: 'Debug log cleared' });
   });
