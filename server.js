@@ -15,6 +15,7 @@ const automationsRouter = require('./routes/automations');
 const commentsRouter = require('./routes/comments');
 const authRouter = require('./routes/auth');
 const mediaRouter = require('./routes/media');
+const insightsRouter = require('./routes/insights');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -66,11 +67,14 @@ app.use('/api/posts', requireAuth, postsRouter(pool));
 app.use('/api/automations', requireAuth, automationsRouter(pool));
 app.use('/api/comments', requireAuth, commentsRouter(pool));
 app.use('/api/media', requireAuth, mediaRouter.router(pool));
+app.use('/api/insights', requireAuth, insightsRouter(pool));
 
 // --- Static pages (unchanged) ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
+app.get('/insights', (req, res) => res.sendFile(path.join(__dirname, 'insights.html')));
+app.get('/insights.html', (req, res) => res.sendFile(path.join(__dirname, 'insights.html')));
 app.get('/about', (req, res) => res.sendFile(path.join(__dirname, 'about.html')));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/privacy-policy', (req, res) => res.sendFile(path.join(__dirname, 'privacy-policy.html')));
