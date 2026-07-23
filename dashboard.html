@@ -262,6 +262,11 @@
             align-items: center;
             justify-content: center;
         }
+        .connection-card .icon-box img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
         .bg-gradient-instagram {
             background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
         }
@@ -341,17 +346,16 @@
         }
         .cal-platform-icons { display: flex; gap: 3px; flex-wrap: wrap; }
         .cal-platform-icons .picon {
-            font-size: 11px;
             width: 20px;
             height: 20px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-weight: 700;
+            background: #f0f0f0;
+            overflow: hidden;
         }
-        .cal-platform-icons .picon i { font-size: 10px; }
+        .cal-platform-icons .picon img { width: 16px; height: 16px; object-fit: contain; }
         .picon-ig { background: var(--ig); }
         .picon-fb { background: var(--fb); }
         .picon-th { background: var(--threads); }
@@ -384,7 +388,7 @@
             font-size: 14px;
             margin-bottom: 8px;
         }
-        .platform-card .pheader i { font-size: 18px; }
+        .platform-card .pheader img { width: 20px; height: 20px; object-fit: contain; }
         .platform-card .pbody { font-size: 13px; color: var(--text-muted); }
         .platform-card .pbody .label { font-weight: 500; color: var(--text); }
         .platform-card .pactions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -763,7 +767,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-primary bg-opacity-10 text-primary rounded-circle p-3 me-3">
-                                <img src="/assets/logos/facebook.svg" alt="Facebook" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-facebook-f fa-lg" style="display:none;"></i>
+                                <img src="/assets/logos/facebook.webp" alt="Facebook" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-facebook-f fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Facebook</h5>
@@ -785,7 +789,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-gradient-instagram rounded-circle p-3 me-3 text-white">
-                                <img src="/assets/logos/instagram.svg" alt="Instagram" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-instagram fa-lg" style="display:none;"></i>
+                                <img src="/assets/logos/insta.webp" alt="Instagram" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-instagram fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Instagram</h5>
@@ -807,7 +811,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box bg-dark bg-opacity-10 text-dark rounded-circle p-3 me-3">
-                                <img src="/assets/logos/threads.svg" alt="Threads" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fas fa-at fa-lg" style="display:none;"></i>
+                                <img src="/assets/logos/Threads.png" alt="Threads" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fas fa-at fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">Threads</h5>
@@ -829,7 +833,7 @@
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex align-items-center mb-3">
                             <div class="icon-box rounded-circle p-3 me-3 text-white" style="background: var(--li);">
-                                <img src="/assets/logos/linkedin.svg" alt="LinkedIn" style="width:28px;height:28px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-linkedin-in fa-lg" style="display:none;"></i>
+                                <img src="/assets/logos/linkedin.webp" alt="LinkedIn" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><i class="fab fa-linkedin-in fa-lg" style="display:none;"></i>
                             </div>
                             <div>
                                 <h5 class="mb-0">LinkedIn</h5>
@@ -1193,10 +1197,10 @@
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const PLATFORM_ICONS = { 
-        ig: '<i class="fab fa-instagram"></i>', 
-        fb: '<i class="fab fa-facebook-f"></i>', 
-        th: '<i class="fas fa-at"></i>', 
-        li: '<i class="fab fa-linkedin-in"></i>' 
+        ig: '<img src="/assets/logos/insta.webp" alt="Instagram" style="width:16px;height:16px;object-fit:contain;">', 
+        fb: '<img src="/assets/logos/facebook.webp" alt="Facebook" style="width:16px;height:16px;object-fit:contain;">', 
+        th: '<img src="/assets/logos/Threads.png" alt="Threads" style="width:16px;height:16px;object-fit:contain;">', 
+        li: '<img src="/assets/logos/linkedin.webp" alt="LinkedIn" style="width:16px;height:16px;object-fit:contain;">' 
     };
     const PLATFORM_CLASS = { ig: 'picon-ig', fb: 'picon-fb', th: 'picon-th', li: 'picon-li' };
 
@@ -1396,7 +1400,12 @@
         const grid = document.createElement('div');
         grid.className = 'day-detail-grid';
         const platformNames = { ig: 'Instagram', fb: 'Facebook', th: 'Threads', li: 'LinkedIn' };
-        const platformIcons = { ig: 'fab fa-instagram', fb: 'fab fa-facebook-f', th: 'fas fa-threads', li: 'fab fa-linkedin-in' };
+        const platformIcons = { 
+            ig: '<img src="/assets/logos/insta.webp" alt="Instagram" style="width:18px;height:18px;object-fit:contain;">',
+            fb: '<img src="/assets/logos/facebook.webp" alt="Facebook" style="width:18px;height:18px;object-fit:contain;">',
+            th: '<img src="/assets/logos/Threads.png" alt="Threads" style="width:18px;height:18px;object-fit:contain;">',
+            li: '<img src="/assets/logos/linkedin.webp" alt="LinkedIn" style="width:18px;height:18px;object-fit:contain;">'
+        };
         const platformColors = { ig: 'var(--ig)', fb: 'var(--fb)', th: 'var(--threads)', li: 'var(--li)' };
 
         platforms.forEach(p => {
@@ -1405,7 +1414,7 @@
             const content = getDayContent(day, p);
             const caption = content && content.caption ? content.caption : '';
             card.innerHTML = `
-                <div class="pheader"><i class="${platformIcons[p]}" style="color:${platformColors[p]};"></i> ${platformNames[p]}</div>
+                <div class="pheader">${platformIcons[p]} ${platformNames[p]}</div>
                 <div class="pbody">
                     ${content ? `<div><span class="label">Title:</span> ${content.title || ''}</div><div><span class="label">Hook:</span> ${content.hook || ''}</div><div class="text-muted" style="font-size:12px;">${caption.substring(0,60)}${caption.length>60?'...':''}</div><div class="text-muted" style="font-size:11px;margin-top:2px;">Status: ${content.status || 'draft'}</div>` : '<span class="text-muted">No content set</span>'}
                 </div>
