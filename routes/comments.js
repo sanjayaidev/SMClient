@@ -3,7 +3,7 @@ const express = require('express');
 function router(pool) {
   const r = express.Router();
 
-  // GET /api/comments - Fetch recent comments from automation_logs
+  // GET /api/comments - Fetch recent comments and DMs from automation_logs
   r.get('/', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
@@ -26,14 +26,14 @@ function router(pool) {
         return res.json([]);
       }
       
+      // Support both comments and DMs/messages
       let query = `
         SELECT id, platform, trigger_type, trigger_text, media_id, sender_id, account_id, 
                automation_id, automation_name, response_type, response_content, reply_location, 
                success, error_message, created_at
         FROM automation_logs
-        WHERE account_id = ANY($1) AND trigger_type = 'comment'
+        WHERE account_id = ANY($1) AND (trigger_type = 'comment' OR trigger_type = 'dm' OR trigger_type = 'message' OR trigger_type = 'manual_reply')
       `;
-      const queryParamCount = 2;
       
       if (platform) {
         query += ' AND platform = $2';
