@@ -1,15 +1,1 @@
-# Examples
-
-Input:
-### Added files:
-['src/main.py', 'README.md', 'config.json']
-
-### Deleted files:
-['old/unused.py']
-### Modified files:
-['utils.py']
-###current .gitignore Content
-(empty)
-
-Expected Output:
-(empty — output nothing)
+Nothing should be ignored since the changes only include source files (.html, .js) without any build artifacts, dependencies, or temporary files.

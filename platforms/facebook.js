@@ -52,11 +52,24 @@ async function replyToComment(token, objectId, message) {
   return res.id;
 }
 
-async function sendDM(token, pageId, recipientId, text) {
-  const res = await post(`${BASE}/${pageId}/messages`, {
-    recipient: JSON.stringify({ id: recipientId }),
-    message: JSON.stringify({ text }),
+async function sendDM(token, pageId, recipientId, text, replyToMid) {
+  // Build the message payload - supports both text and attachments
+  let messagePayload = {
+    recipient: { id: recipientId },
     messaging_type: 'RESPONSE',
+    message: { text }
+  };
+  
+  // If replying to a specific message, include reply_to field
+  if (replyToMid) {
+    messagePayload.reply_to = { mid: replyToMid };
+  }
+  
+  const res = await post(`${BASE}/${pageId}/messages`, {
+    recipient: JSON.stringify(messagePayload.recipient),
+    messaging_type: messagePayload.messaging_type,
+    message: JSON.stringify(messagePayload.message),
+    reply_to: messagePayload.reply_to ? JSON.stringify(messagePayload.reply_to) : undefined
   }, token);
   return res.message_id;
 }

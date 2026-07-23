@@ -48,32 +48,32 @@ function router(pool) {
     }
   });
 
-  // POST /api/comments/:id/reply - Reply to a comment
+  // POST /api/comments/:id/reply - Reply to a comment or DM
   r.post('/:id/reply', async (req, res) => {
     try {
       const userId = req.user.id || req.user.sub;
-      const commentId = req.params.id;
-      const { message } = req.body;
+      const logId = req.params.id;
+      const { message, reply_to_mid } = req.body;
       
       if (!message || typeof message !== 'string' || message.trim().length === 0) {
         return res.status(400).json({ error: 'message is required' });
       }
 
-      // Get the original comment log to find platform and account
+      // Get the original log to find platform, account, and trigger type
       const logRes = await pool.query(
-        'SELECT platform, account_id FROM automation_logs WHERE id = $1',
-        [commentId]
+        'SELECT platform, account_id, trigger_type, sender_id FROM automation_logs WHERE id = $1',
+        [logId]
       );
       
       if (logRes.rows.length === 0) {
-        return res.status(404).json({ error: 'Comment not found' });
+        return res.status(404).json({ error: 'Comment/Message not found' });
       }
       
-      const { platform, account_id } = logRes.rows[0];
+      const { platform, account_id, trigger_type, sender_id } = logRes.rows[0];
       
-      // Get the connection token
+      // Get the connection with all necessary fields
       const connRes = await pool.query(
-        'SELECT access_token FROM connections WHERE user_id = $1 AND (account_id = $2 OR page_id = $2) AND is_connected = true',
+        'SELECT access_token, page_id, account_id as conn_account_id FROM connections WHERE user_id = $1 AND (account_id = $2 OR page_id = $2) AND is_connected = true',
         [userId, account_id]
       );
       
@@ -81,17 +81,30 @@ function router(pool) {
         return res.status(400).json({ error: 'No connected account found for this platform' });
       }
       
+      const conn = connRes.rows[0];
       const { decrypt } = require('../lib/crypto');
-      const token = decrypt(connRes.rows[0].access_token);
+      const token = decrypt(conn.access_token);
       
-      // Reply based on platform
+      // Reply based on platform and trigger type
       let replyId;
       if (platform === 'facebook') {
         const facebook = require('../platforms/facebook');
-        replyId = await facebook.replyToComment(token, commentId, message);
+        if (trigger_type === 'dm' || trigger_type === 'message') {
+          // Reply to DM/message using sendDM with optional reply_to_mid
+          replyId = await facebook.sendDM(token, conn.page_id || conn.conn_account_id, sender_id, message, reply_to_mid);
+        } else {
+          // Reply to comment
+          replyId = await facebook.replyToComment(token, logId, message);
+        }
       } else if (platform === 'instagram') {
         const instagram = require('../platforms/instagram');
-        replyId = await instagram.replyToComment(token, commentId, message, connRes.rows[0]);
+        if (trigger_type === 'dm' || trigger_type === 'message') {
+          // Reply to DM/message using sendDM with optional reply_to_mid
+          replyId = await instagram.sendDM(token, conn.conn_account_id || conn.page_id, sender_id, message, conn, reply_to_mid);
+        } else {
+          // Reply to comment
+          replyId = await instagram.replyToComment(token, logId, message, conn);
+        }
       } else if (platform === 'threads') {
         const threads = require('../platforms/threads');
         // For Threads, we need the threads user ID from the connection
@@ -103,7 +116,8 @@ function router(pool) {
           return res.status(400).json({ error: 'No connected Threads account found' });
         }
         const threadsUserId = connDetailsRes.rows[0].account_id;
-        replyId = await threads.replyToThread(token, threadsUserId, commentId, message);
+        // Threads only supports replying to comments (no DMs)
+        replyId = await threads.replyToThread(token, threadsUserId, logId, message);
       } else {
         return res.status(400).json({ error: `Unsupported platform: ${platform}` });
       }
@@ -125,13 +139,14 @@ function router(pool) {
           'Manual Reply',
           'text',
           message,
-          'comment',
+          trigger_type === 'dm' || trigger_type === 'message' ? 'message' : 'comment',
           true
         ]
       );
       
       res.json({ success: true, reply_id: replyId });
     } catch (err) {
+      console.error('Error sending reply:', err);
       res.status(500).json({ error: err.message });
     }
   });

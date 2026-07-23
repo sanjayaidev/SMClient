@@ -123,12 +123,35 @@ async function replyToComment(token, commentId, message, conn) {
   return result.data.id;
 }
 
-async function sendDM(token, igId, recipientId, text, conn) {
+async function sendDM(token, igId, recipientId, text, conn, replyToMid) {
   const hosts = conn ? getHosts(conn) : { primary: FB_BASE, fallback: IG_BASE };
+  
+  // Build the message payload - supports both text and attachments
+  let messagePayload;
+  if (replyToMid) {
+    // If replying to a specific message, include reply_to field
+    messagePayload = {
+      recipient: { id: recipientId },
+      messaging_type: 'RESPONSE',
+      message: { text },
+      reply_to: { mid: replyToMid }
+    };
+  } else {
+    // Standard DM without reply context
+    messagePayload = {
+      recipient: { id: recipientId },
+      messaging_type: 'RESPONSE',
+      message: { text }
+    };
+  }
+  
   const result = await postWithFallback(hosts, `/${igId}/messages`, {
-    recipient: JSON.stringify({ id: recipientId }),
-    message: JSON.stringify({ text }),
+    recipient: JSON.stringify(messagePayload.recipient),
+    messaging_type: messagePayload.messaging_type,
+    message: JSON.stringify(messagePayload.message),
+    reply_to: messagePayload.reply_to ? JSON.stringify(messagePayload.reply_to) : undefined
   }, token);
+  
   if (!result.success) {
     throw result.error;
   }

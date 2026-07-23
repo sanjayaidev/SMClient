@@ -2727,6 +2727,10 @@
         const triggerText = item.trigger_text || '';
         const truncatedText = triggerText.length > 80 ? triggerText.substring(0, 80) + '...' : triggerText;
         
+        // For DMs/messages, we may want to reply to the specific message
+        // The sender_id can be used as PSID/IGSID for replying
+        const isDM = type === 'DM';
+        
         card.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
                 <div style="font-size:11px;color:var(--text-muted);">
@@ -2736,7 +2740,7 @@
             </div>
             <div style="font-size:13px;margin-bottom:8px;line-height:1.4;">${escapeHtml(truncatedText)}</div>
             <div style="display:flex;gap:6px;">
-                <button class="btn btn-sm btn-outline" onclick="showReplyModal('${item.id}', '${platform}', '${type}')">
+                <button class="btn btn-sm btn-outline" onclick="showReplyModal('${item.id}', '${platform}', '${type}', ${isDM ? `'${item.sender_id}'` : 'null'})">
                     <i class="fas fa-reply"></i> Reply
                 </button>
             </div>
@@ -2863,14 +2867,19 @@
     }
 
     // Show reply modal
-    window.showReplyModal = function(commentId, platform, type) {
+    window.showReplyModal = function(logId, platform, type, senderId = null) {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:10001;';
+        
+        const isDM = type === 'DM';
+        const modalTitle = isDM ? `Reply to ${platform.charAt(0).toUpperCase() + platform.slice(1)} Message` : `Reply to ${type}`;
+        
         modal.innerHTML = `
             <div class="modal" style="max-width:480px;width:90%;">
-                <h2><i class="fas fa-reply" style="color:var(--primary);"></i> Reply to ${type}</h2>
+                <h2><i class="fas fa-reply" style="color:var(--primary);"></i> ${modalTitle}</h2>
                 <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Platform: ${platform.charAt(0).toUpperCase() + platform.slice(1)}</p>
+                ${isDM && senderId ? `<p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Replying to user ID: ${senderId}</p>` : ''}
                 <textarea id="replyTextInput" rows="4" placeholder="Type your reply..." style="width:100%;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;resize:vertical;"></textarea>
                 <div class="text-muted" id="replyError" style="display:none;color:var(--error);font-size:13px;margin-top:8px;"></div>
                 <div class="modal-actions" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
@@ -2895,9 +2904,13 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
             
             try {
-                const res = await apiFetch(`/api/comments/${commentId}/reply`, {
+                // For DMs, we may want to include reply_to context if available
+                // The API will handle routing based on trigger_type in the log
+                const requestBody = { message: text };
+                
+                const res = await apiFetch(`/api/comments/${logId}/reply`, {
                     method: 'POST',
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify(requestBody)
                 });
                 if (res.ok) {
                     modal.remove();
