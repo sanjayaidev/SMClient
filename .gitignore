@@ -1,1 +1,115 @@
-Nothing needs to be added to .gitignore since only a source file (dashboard.html) was modified and there are no build artifacts, dependencies, or temporary files in the changes.
+```
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.python-version
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Database
+*.sqlite
+*.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+# Gradle
+.gradle/
+
+# Maven
+target/
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ruby
+*.gem
+.bundle/
+Gemfile.lock
+
+# Go
+*.out
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# C/C++
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.out
+
+# Julia
+.julia/
+
+# Zig
+zig-cache/
+```
